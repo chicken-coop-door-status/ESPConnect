@@ -279,6 +279,135 @@ const SUPPORTED_VENDORS = [
 
 const DEFAULT_ROM_BAUD = 115200;
 
+const PACKAGE_LABELS = {
+  ESP32: pkgVersion =>
+    ({
+      0: 'ESP32-D0WDQ6',
+      1: 'ESP32-D0WD',
+      2: 'ESP32-D2WD',
+      4: 'ESP32-U4WDH',
+      5: 'ESP32-PICO-D4',
+      6: 'ESP32-PICO-V3-02',
+    }[pkgVersion] ?? null),
+  'ESP32-C3': pkgVersion =>
+    ({
+      0: 'ESP32-C3 (QFN32)',
+      1: 'ESP8685 (QFN28)',
+      2: 'ESP32-C3 (AZ QFN32)',
+      3: 'ESP8686 (QFN24)',
+    }[pkgVersion] ?? null),
+  'ESP32-S3': pkgVersion =>
+    ({
+      0: 'ESP32-S3 (QFN56)',
+      1: 'ESP32-S3-PICO-1 (LGA56)',
+    }[pkgVersion] ?? null),
+  'ESP32-S2': pkgVersion =>
+    ({
+      0: 'ESP32-S2',
+      1: 'ESP32-S2FH2',
+      2: 'ESP32-S2FH4',
+    }[pkgVersion] ?? null),
+};
+
+const ECO_LABELS = {
+  0: 'ECO0',
+  1: 'ECO1',
+  2: 'ECO2',
+  3: 'ECO3',
+};
+
+const EMBEDDED_FLASH_CAPACITY = {
+  'ESP32-C3': {
+    1: '4MB',
+    2: '2MB',
+    3: '1MB',
+    4: '8MB',
+  },
+  'ESP32-S3': {
+    1: '8MB',
+    2: '4MB',
+  },
+  'ESP32-S2': {
+    1: '2MB',
+    2: '4MB',
+  },
+};
+
+const EMBEDDED_PSRAM_CAPACITY = {
+  'ESP32-S3': {
+    1: '8MB',
+    2: '2MB',
+  },
+  'ESP32-S2': {
+    1: '2MB',
+    2: '4MB',
+  },
+};
+
+function resolvePackageLabel(chipKey, pkgVersion, chipRevision) {
+  const mapper = PACKAGE_LABELS[chipKey];
+  if (!mapper || typeof pkgVersion !== 'number' || Number.isNaN(pkgVersion)) {
+    return null;
+  }
+  let label = mapper(pkgVersion);
+  if (!label) return null;
+  if (chipKey === 'ESP32' && chipRevision === 3 && (pkgVersion === 0 || pkgVersion === 1)) {
+    label += ' V3';
+  }
+  return label;
+}
+
+function resolveRevisionLabel(chipKey, chipRevision, majorVersion, minorVersion) {
+  if (chipKey === 'ESP32' && typeof chipRevision === 'number' && !Number.isNaN(chipRevision)) {
+    const eco = ECO_LABELS[chipRevision];
+    return eco ? `${eco} (r${chipRevision})` : `r${chipRevision}`;
+  }
+  if (
+    typeof majorVersion === 'number' &&
+    typeof minorVersion === 'number' &&
+    !Number.isNaN(majorVersion) &&
+    !Number.isNaN(minorVersion)
+  ) {
+    return `v${majorVersion}.${minorVersion}`;
+  }
+  if (typeof chipRevision === 'number' && !Number.isNaN(chipRevision)) {
+    return `r${chipRevision}`;
+  }
+  return null;
+}
+
+function cleanEmbeddedFeature(feature, keyword) {
+  const match = feature.match(new RegExp(`${keyword}\\s*(.*)`, 'i'));
+  if (match && match[1]) {
+    return match[1].trim();
+  }
+  return feature.replace(new RegExp(keyword, 'i'), '').trim() || feature.trim();
+}
+
+function resolveEmbeddedFlash(chipKey, flashCap, flashVendor, featureList) {
+  const map = EMBEDDED_FLASH_CAPACITY[chipKey];
+  if (map && typeof flashCap === 'number' && !Number.isNaN(flashCap) && map[flashCap]) {
+    return `${map[flashCap]}${flashVendor ? ` (${flashVendor})` : ''}`;
+  }
+  const feature = featureList.find(value => /Embedded Flash/i.test(value));
+  if (feature) {
+    return cleanEmbeddedFeature(feature, 'Embedded Flash');
+  }
+  return null;
+}
+
+function resolveEmbeddedPsram(chipKey, psramCap, psramVendor, featureList) {
+  const map = EMBEDDED_PSRAM_CAPACITY[chipKey];
+  if (map && typeof psramCap === 'number' && !Number.isNaN(psramCap) && map[psramCap]) {
+    return `${map[psramCap]}${psramVendor ? ` (${psramVendor})` : ''}`;
+  }
+  const feature = featureList.find(value => /Embedded PSRAM/i.test(value));
+  if (feature) {
+    return cleanEmbeddedFeature(feature, 'Embedded PSRAM');
+  }
+  return null;
+}
+
 const serialSupported = 'serial' in navigator;
 const connected = ref(false);
 const statusDetails = ref('No device connected.');
@@ -439,6 +568,8 @@ async function connect() {
       minorVersion,
       flashVendor,
       psramVendor,
+      flashCap,
+      psramCap,
     ] = await Promise.all([
       callChip('getChipDescription'),
       callChip('getChipFeatures'),
@@ -451,6 +582,8 @@ async function connect() {
       callChip('getMinorChipVersion'),
       callChip('getFlashVendor'),
       callChip('getPsramVendor'),
+      callChip('getFlashCap'),
+      callChip('getPsramCap'),
     ]);
 
     const flashId = await loader.value.readFlashId().catch(() => undefined);
@@ -470,26 +603,43 @@ async function connect() {
       typeof crystalFreq === 'number' ? `${Number(crystalFreq).toFixed(0)} MHz` : null;
     const macLabel = macAddress || 'Unavailable';
 
+    const chipKey = chip?.CHIP_NAME || chipName;
     const facts = [];
-    if (typeof packageVersion !== 'undefined' && packageVersion !== null) {
-      facts.push({ label: 'Package Version', value: String(packageVersion) });
+
+    const packageLabel = resolvePackageLabel(chipKey, packageVersion, chipRevision);
+    if (packageLabel) {
+      facts.push({ label: 'Package', value: packageLabel });
     }
-    if (typeof chipRevision === 'number' && !Number.isNaN(chipRevision)) {
-      facts.push({ label: 'Revision', value: `r${chipRevision}` });
-    } else if (
-      typeof majorVersion === 'number' &&
-      typeof minorVersion === 'number' &&
-      !Number.isNaN(majorVersion) &&
-      !Number.isNaN(minorVersion)
+
+    const revisionLabel = resolveRevisionLabel(chipKey, chipRevision, majorVersion, minorVersion);
+    if (revisionLabel) {
+      facts.push({ label: 'Revision', value: revisionLabel });
+    }
+
+    const embeddedFlash = resolveEmbeddedFlash(chipKey, flashCap, flashVendor, featureList);
+    if (embeddedFlash) {
+      facts.push({ label: 'Embedded Flash', value: embeddedFlash });
+    }
+
+    const embeddedPsram = resolveEmbeddedPsram(chipKey, psramCap, psramVendor, featureList);
+    if (embeddedPsram) {
+      facts.push({ label: 'Embedded PSRAM', value: embeddedPsram });
+    }
+
+    if (
+      flashVendor &&
+      !facts.some(fact => fact.label === 'Embedded Flash' && fact.value.includes(flashVendor))
     ) {
-      facts.push({ label: 'Silicon', value: `v${majorVersion}.${minorVersion}` });
+      facts.push({ label: 'Flash Vendor', value: flashVendor });
     }
-    if (flashVendor) {
-      facts.push({ label: 'Embedded Flash Vendor', value: flashVendor });
-    }
-    if (psramVendor) {
+
+    if (
+      psramVendor &&
+      !facts.some(fact => fact.label === 'Embedded PSRAM' && fact.value.includes(psramVendor))
+    ) {
       facts.push({ label: 'PSRAM Vendor', value: psramVendor });
     }
+
     if (typeof flashId === 'number' && !Number.isNaN(flashId)) {
       const manufacturerHex = `0x${(flashId & 0xff).toString(16).padStart(2, '0').toUpperCase()}`;
       const memoryType = (flashId >> 8) & 0xff;
