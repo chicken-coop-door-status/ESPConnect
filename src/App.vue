@@ -54,24 +54,30 @@
               />
             </div>
             <v-spacer />
-            <v-chip
-              :color="connected ? 'success' : 'grey-darken-1'"
-              class="text-capitalize"
-              variant="elevated"
-              density="comfortable"
-            >
-              <template #prepend>
-                <v-icon v-if="connected">mdi-usb-port</v-icon>
-                <v-avatar
-                  v-else
-                  size="22"
-                  class="status-logo-avatar"
-                >
-                  <v-img :src="disconnectedLogo" alt="Disconnected status logo" />
-                </v-avatar>
-              </template>
-              {{ connectionChipLabel }}
-            </v-chip>
+          <v-chip
+            :color="connected ? 'success' : 'grey-darken-1'"
+            class="text-capitalize"
+            variant="elevated"
+            density="comfortable"
+          >
+            <template #prepend>
+              <v-icon
+                v-if="connected"
+                start
+                class="status-chip-icon status-chip-icon--connected"
+              >
+                mdi-usb-port
+              </v-icon>
+              <v-icon
+                v-else
+                start
+                class="status-chip-icon status-chip-icon--disconnected"
+              >
+                mdi-usb-c-port
+              </v-icon>
+            </template>
+            {{ connectionChipLabel }}
+          </v-chip>
           </v-system-bar>
 
           <v-alert
@@ -1418,13 +1424,17 @@ onBeforeUnmount(() => {
   background-color: rgba(255, 255, 255, 0.08) !important;
 }
 
-.status-logo-avatar {
-  background: transparent;
-  padding: 2px;
+.status-chip-icon {
+  color: currentColor !important;
+  opacity: 0.92;
 }
 
-.status-logo-avatar :deep(.v-img__img) {
-  object-fit: contain;
+.status-chip-icon--connected {
+  color: color-mix(in srgb, var(--v-theme-on-success) 94%, transparent) !important;
+}
+
+.status-chip-icon--disconnected {
+  color: color-mix(in srgb, var(--v-theme-error) 65%, #ffffff 35%) !important;
 }
 
 .status-select {
