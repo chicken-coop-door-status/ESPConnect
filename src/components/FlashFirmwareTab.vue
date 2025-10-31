@@ -76,7 +76,7 @@
       Flash Integrity
     </v-card-title>
     <v-card-text class="tools-card__body">
-      <v-row dense>
+      <v-row dense class="flash-progress-row">
         <v-col cols="12" md="6">
           <v-text-field
             :model-value="md5Offset"
@@ -99,6 +99,17 @@
         </v-col>
       </v-row>
       <div class="tools-card__actions">
+        <v-progress-linear
+          v-if="downloadProgress.visible"
+          :model-value="downloadProgress.value"
+          color="primary"
+          height="8"
+          rounded
+          striped
+          class="download-progress"
+        >
+          <strong>{{ downloadProgress.label }}</strong>
+        </v-progress-linear>
         <v-btn
           color="primary"
           variant="tonal"
@@ -223,16 +234,27 @@
           </v-btn>
         </div>
       </div>
+  <v-progress-linear
+    v-if="downloadProgress.visible"
+    :model-value="downloadProgress.value"
+    color="primary"
+    height="8"
+    rounded
+    striped
+    class="download-progress"
+  >
+    <strong>{{ downloadProgress.label }}</strong>
+  </v-progress-linear>
   <v-alert
     v-if="flashReadStatus"
     :type="flashReadStatusType"
     variant="tonal"
     density="comfortable"
-        border="start"
-        class="mt-3"
-      >
-        {{ flashReadStatus }}
-      </v-alert>
+    border="start"
+    class="mt-3"
+  >
+    {{ flashReadStatus }}
+  </v-alert>
     </v-card-text>
   </v-card>
 
@@ -409,6 +431,10 @@ defineProps({
   selectedPartition: {
     type: [String, Number],
     default: null,
+  },
+  downloadProgress: {
+    type: Object,
+    default: () => ({ visible: false, value: 0, label: '' }),
   },
 });
 

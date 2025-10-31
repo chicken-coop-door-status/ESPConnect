@@ -142,6 +142,7 @@
                 :flash-read-status-type="flashReadStatusType"
                 :partition-options="partitionDownloadOptions"
                 :selected-partition="selectedPartitionDownload"
+                :download-progress="downloadProgress"
                 @firmware-input="handleFirmwareInput"
                 @flash="flashFirmware"
                 @apply-preset="applyOffsetPreset"
@@ -220,7 +221,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
 import { ESPLoader, Transport } from 'esptool-js';
 import { useTheme } from 'vuetify';
 import disconnectedLogo from './assets/disconnected-logo.svg';
@@ -661,6 +662,7 @@ const selectedPartitionDownload = ref(null);
 const currentBaud = ref(DEFAULT_ROM_BAUD);
 const baudChangeBusy = ref(false);
 const maintenanceBusy = ref(false);
+const downloadProgress = reactive({ visible: false, value: 0, label: '' });
 const registerAddress = ref('0x0');
 const registerValue = ref('');
 const registerReadResult = ref(null);
@@ -1831,6 +1833,9 @@ function resetMaintenanceState() {
   flashReadOffset.value = '0x0';
   flashReadLength.value = '';
   selectedPartitionDownload.value = null;
+  downloadProgress.visible = false;
+  downloadProgress.value = 0;
+  downloadProgress.label = '';
 }
 
 async function handleReadRegister() {
@@ -1852,6 +1857,7 @@ async function handleReadRegister() {
     registerStatus.value = `Read failed: ${error?.message || error}`;
   } finally {
     maintenanceBusy.value = false;
+    downloadProgress.visible = false;
   }
 }
 
@@ -1958,13 +1964,15 @@ async function downloadFlashRegion(offset, length, options = {}) {
   if (!suppressStatus) {
     flashReadStatusType.value = 'info';
     flashReadStatus.value = 'Downloading ' + displayLabel + ' @ ' + baudLabel + '...';
+    downloadProgress.visible = true;
+    downloadProgress.value = 0;
+    downloadProgress.label = 'Preparing download @ ' + baudLabel + '...';
   }
 
   const buffer = await loader.value.readFlash(offset, length, (_packet, received, total) => {
-    if (!suppressStatus) {
-      flashReadStatusType.value = 'info';
-      flashReadStatus.value =
-        'Downloading ' +
+    const progressValue = total > 0 ? Math.min(100, Math.floor((received / total) * 100)) : 0;
+    const progressLabel = total
+      ? 'Downloading ' +
         displayLabel +
         ' @ ' +
         baudLabel +
@@ -1972,7 +1980,14 @@ async function downloadFlashRegion(offset, length, options = {}) {
         received.toLocaleString() +
         ' of ' +
         total.toLocaleString() +
-        ' bytes...';
+        ' bytes'
+      : 'Downloading ' + displayLabel + ' @ ' + baudLabel;
+    if (!suppressStatus) {
+      downloadProgress.visible = true;
+      downloadProgress.value = progressValue;
+      downloadProgress.label = progressLabel;
+      flashReadStatusType.value = 'info';
+      flashReadStatus.value = progressLabel;
     }
   });
 
@@ -1992,6 +2007,9 @@ async function downloadFlashRegion(offset, length, options = {}) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 
   if (!suppressStatus) {
+    downloadProgress.visible = false;
+    downloadProgress.value = 100;
+    downloadProgress.label = 'Download complete @ ' + baudLabel;
     flashReadStatusType.value = 'success';
     flashReadStatus.value =
       'Downloaded ' +
@@ -2111,6 +2129,7 @@ async function handleDownloadFlash(payload = { mode: 'manual' }) {
     flashReadStatusType.value = 'warning';
     flashReadStatus.value = 'Unsupported download mode.';
   } catch (error) {
+    downloadProgress.visible = false;
     flashReadStatusType.value = 'error';
     flashReadStatus.value = 'Download failed: ' + (error && error.message ? error.message : error);
   } finally {
