@@ -4,8 +4,9 @@ import {
   SpiffsImage,
   SPIFFS_PH_FLAG_DELET,
   SPIFFS_PH_FLAG_INDEX,
-} from './spiffs.js';
-export { DEFAULT_SPIFFS_PRESETS, SpiffsPreset } from './spiffsPresets.js';
+} from './spiffs';
+export { DEFAULT_SPIFFS_PRESETS } from './spiffsPresets';
+export type { SpiffsPreset } from './spiffsPresets';
 
 const SPIFFS_TYPE_FILE = 1;
 

@@ -72,8 +72,21 @@
             </v-window-item>
 
             <v-window-item value="partitions">
-            <PartitionsTab :partition-segments="partitionSegments" :formatted-partitions="formattedPartitions"
-              :unused-summary="unusedFlashSummary" />
+              <PartitionsTab :partition-segments="partitionSegments" :formatted-partitions="formattedPartitions"
+                :unused-summary="unusedFlashSummary" />
+            </v-window-item>
+
+            <v-window-item value="spiffs">
+              <SpiffsManagerTab :partitions="spiffsPartitions" :selected-partition-id="spiffsState.selectedId"
+                :files="spiffsState.files" :status="spiffsState.status" :loading="spiffsState.loading"
+                :busy="spiffsState.busy" :saving="spiffsState.saving" :read-only="spiffsState.readOnly"
+                :read-only-reason="spiffsState.readOnlyReason" :dirty="spiffsState.dirty"
+                :backup-done="spiffsState.backupDone" :error="spiffsState.error"
+                :has-partition="hasSpiffsPartitionSelected" :has-client="Boolean(spiffsState.client)"
+                @select-partition="handleSelectSpiffsPartition" @refresh="handleRefreshSpiffs"
+                @backup="handleSpiffsBackup" @restore="handleSpiffsRestore" @download-file="handleSpiffsDownloadFile"
+                @upload-file="handleSpiffsUpload" @delete-file="handleSpiffsDelete" @format="handleSpiffsFormat"
+                @save="handleSpiffsSave" />
             </v-window-item>
 
             <v-window-item value="apps">
@@ -189,10 +202,12 @@ import { useTheme } from 'vuetify';
 import DeviceInfoTab from './components/DeviceInfoTab.vue';
 import FlashFirmwareTab from './components/FlashFirmwareTab.vue';
 import AppsTab from './components/AppsTab.vue';
+import SpiffsManagerTab from './components/SpiffsManagerTab.vue';
 import PartitionsTab from './components/PartitionsTab.vue';
 import SessionLogTab from './components/SessionLogTab.vue';
 import SerialMonitorTab from './components/SerialMonitorTab.vue';
 import registerGuides from './data/register-guides.json';
+import { InMemorySpiffsClient } from './utils/spiffs/spiffsClient';
 
 const APP_NAME = 'ESPConnect';
 const APP_VERSION = '1.00';
@@ -553,6 +568,379 @@ function formatUsbBridge(info) {
   return vendorName;
 }
 
+function resetSpiffsState() {
+  spiffsState.client = null;
+  spiffsState.files = [];
+  spiffsState.status = 'Load a SPIFFS partition to begin.';
+  spiffsState.loading = false;
+  spiffsState.busy = false;
+  spiffsState.saving = false;
+  spiffsState.error = null;
+  spiffsState.readOnly = false;
+  spiffsState.readOnlyReason = '';
+  spiffsState.dirty = false;
+  spiffsState.backupDone = false;
+  spiffsState.diagnostics = [];
+  spiffsState.baselineFiles = [];
+}
+
+async function ensureSpiffsReady(options = {}) {
+  if (!connected.value || !spiffsAvailable.value) {
+    return;
+  }
+  const partition = spiffsSelectedPartition.value ?? spiffsPartitions.value[0];
+  if (!partition) {
+    return;
+  }
+  if (!spiffsState.selectedId) {
+    spiffsState.selectedId = partition.id;
+  }
+  if (spiffsState.loading || spiffsState.busy || spiffsState.saving) {
+    return;
+  }
+  if (options.force || !spiffsState.client || spiffsState.selectedId !== partition.id) {
+    await loadSpiffsPartition(partition);
+  }
+}
+
+async function loadSpiffsPartition(partition) {
+  if (!loader.value || !partition) {
+    spiffsState.error = 'Connect to a device with a SPIFFS partition first.';
+    return;
+  }
+  spiffsState.selectedId = partition.id;
+  spiffsState.loading = true;
+  spiffsState.error = null;
+  spiffsState.readOnly = false;
+  spiffsState.readOnlyReason = '';
+  spiffsState.status = `Reading SPIFFS @ 0x${partition.offset.toString(16).toUpperCase()}...`;
+  try {
+    await releaseTransportReader();
+    const image = await loader.value.readFlash(partition.offset, partition.size);
+    let client;
+    try {
+      client = await InMemorySpiffsClient.fromImage(image);
+    } catch (error) {
+      spiffsState.error = formatErrorMessage(error);
+      spiffsState.readOnly = true;
+      spiffsState.readOnlyReason = 'SPIFFS image unreadable (possibly encrypted).';
+      spiffsState.status = 'SPIFFS is read-only.';
+      spiffsState.client = null;
+      spiffsState.files = [];
+      spiffsState.baselineFiles = [];
+      return;
+    }
+    spiffsState.client = client;
+    spiffsState.files = await client.list();
+    spiffsState.baselineFiles = spiffsState.files.map(file => ({
+      name: file.name,
+      size: file.size,
+    }));
+    spiffsState.dirty = false;
+    spiffsState.backupDone = false;
+    const count = spiffsState.files.length;
+    spiffsState.status = count === 1 ? 'Loaded 1 file.' : `Loaded ${count} files.`;
+    appendLog(
+      `SPIFFS partition ${partition.label} loaded (${count} file${count === 1 ? '' : 's'}).`,
+      '[debug]'
+    );
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+    spiffsState.status = 'Failed to read SPIFFS.';
+  } finally {
+    spiffsState.loading = false;
+  }
+}
+
+async function refreshSpiffsListing() {
+  if (!spiffsState.client) {
+    return;
+  }
+  spiffsState.files = await spiffsState.client.list();
+}
+
+function markSpiffsDirty(message) {
+  spiffsState.dirty = true;
+  if (message) {
+    spiffsState.status = message;
+  }
+}
+
+function computeSpiffsDiff() {
+  const baselineMap = new Map(spiffsState.baselineFiles.map(file => [file.name, file.size]));
+  const currentMap = new Map(spiffsState.files.map(file => [file.name, file.size]));
+  const added = [];
+  const removed = [];
+  const modified = [];
+  for (const [name, size] of currentMap.entries()) {
+    if (!baselineMap.has(name)) {
+      added.push(`${name} (${formatBytes(size) ?? `${size} bytes`})`);
+    } else if (baselineMap.get(name) !== size) {
+      modified.push(
+        `${name} (${formatBytes(baselineMap.get(name)) ?? baselineMap.get(name)} → ${formatBytes(size) ?? `${size} bytes`})`,
+      );
+    }
+  }
+  for (const [name, size] of baselineMap.entries()) {
+    if (!currentMap.has(name)) {
+      removed.push(`${name} (${formatBytes(size) ?? `${size} bytes`})`);
+    }
+  }
+  return { added, removed, modified };
+}
+
+async function handleSelectSpiffsPartition(partitionId) {
+  if (spiffsState.loading || spiffsState.busy || spiffsState.saving) {
+    return;
+  }
+  spiffsState.selectedId = partitionId;
+  spiffsState.client = null;
+  spiffsState.files = [];
+  spiffsState.status = 'Loading SPIFFS...';
+  const partition =
+    spiffsPartitions.value.find(entry => entry.id === partitionId) ?? spiffsPartitions.value[0];
+  if (partition) {
+    await loadSpiffsPartition(partition);
+  }
+}
+
+async function handleRefreshSpiffs() {
+  const partition = spiffsSelectedPartition.value;
+  if (!partition) {
+    return;
+  }
+  await loadSpiffsPartition(partition);
+}
+
+async function handleSpiffsBackup() {
+  const partition = spiffsSelectedPartition.value;
+  if (!partition) {
+    spiffsState.status = 'Select a SPIFFS partition first.';
+    return;
+  }
+  if (!loader.value) {
+    spiffsState.status = 'Connect to a device first.';
+    return;
+  }
+  try {
+    const label = sanitizeFileName(`${partition.label || 'spiffs'}_${partition.offset.toString(16)}`, 'spiffs');
+    await downloadFlashRegion(partition.offset, partition.size, {
+      label: `${partition.label} SPIFFS`,
+      fileName: `${label}.bin`,
+    });
+    spiffsState.backupDone = true;
+    spiffsState.status = 'Backup downloaded. You can now save changes.';
+    appendLog('SPIFFS backup downloaded.', '[debug]');
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+    spiffsState.status = 'SPIFFS backup failed.';
+  }
+}
+
+async function handleSpiffsRestore(file) {
+  const partition = spiffsSelectedPartition.value;
+  if (!partition) return;
+  if (!file) return;
+  const buffer = new Uint8Array(await file.arrayBuffer());
+  if (buffer.length !== partition.size) {
+    spiffsState.status = `Restore file must be exactly ${formatBytes(partition.size) ?? `${partition.size} bytes`}.`;
+    return;
+  }
+  const confirmed = await showConfirmation({
+    title: 'Restore SPIFFS Partition',
+    message:
+      'This will overwrite the entire SPIFFS partition with the selected image. Continue?',
+    confirmText: 'Restore',
+    destructive: true,
+  });
+  if (!confirmed) {
+    return;
+  }
+  try {
+    spiffsState.saving = true;
+    maintenanceBusy.value = true;
+    await writeSpiffsImage(partition, buffer);
+    spiffsState.status = 'SPIFFS image restored.';
+    spiffsState.backupDone = true;
+    appendLog('SPIFFS partition restored from backup.', '[debug]');
+    await loadSpiffsPartition(partition);
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+    spiffsState.status = 'Restore failed.';
+  } finally {
+    spiffsState.saving = false;
+    maintenanceBusy.value = false;
+  }
+}
+
+async function handleSpiffsDownloadFile(name) {
+  if (!spiffsState.client) return;
+  try {
+    const data = await spiffsState.client.read(name);
+    saveBinaryFile(name, data);
+    appendLog(`SPIFFS downloaded ${name} (${data.length.toLocaleString()} bytes).`, '[debug]');
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+  }
+}
+
+async function handleSpiffsUpload({ file, name }) {
+  if (!spiffsState.client) return;
+  if (spiffsState.readOnly) {
+    spiffsState.status = spiffsState.readOnlyReason || 'SPIFFS is read-only.';
+    return;
+  }
+  if (!file) {
+    spiffsState.status = 'Select a file to upload.';
+    return;
+  }
+  const targetName = (name || file.name || '').trim();
+  if (!targetName) {
+    spiffsState.status = 'Provide a filename.';
+    return;
+  }
+  try {
+    spiffsState.busy = true;
+    const data = new Uint8Array(await file.arrayBuffer());
+    await spiffsState.client.write(targetName, data);
+    await refreshSpiffsListing();
+    markSpiffsDirty(`Staged ${targetName}. Remember to Save.`);
+    appendLog(`SPIFFS staged ${targetName} (${data.length.toLocaleString()} bytes).`, '[debug]');
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+  } finally {
+    spiffsState.busy = false;
+  }
+}
+
+async function handleSpiffsDelete(name) {
+  if (!spiffsState.client || spiffsState.readOnly) {
+    return;
+  }
+  const confirmed = await showConfirmation({
+    title: 'Delete File',
+    message: `Delete ${name} from SPIFFS? This cannot be undone.`,
+    confirmText: 'Delete',
+    destructive: true,
+  });
+  if (!confirmed) {
+    return;
+  }
+  try {
+    spiffsState.busy = true;
+    await spiffsState.client.remove(name);
+    await refreshSpiffsListing();
+    markSpiffsDirty(`${name} deleted. Save to persist.`);
+    appendLog(`SPIFFS staged deletion of ${name}.`, '[debug]');
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+  } finally {
+    spiffsState.busy = false;
+  }
+}
+
+async function handleSpiffsFormat() {
+  if (!spiffsState.client || spiffsState.readOnly) {
+    return;
+  }
+  const confirmed = await showConfirmation({
+    title: 'Format SPIFFS',
+    message: 'Erase all files from the SPIFFS image? You must Save to apply.',
+    confirmText: 'Format',
+    destructive: true,
+  });
+  if (!confirmed) return;
+  try {
+    spiffsState.busy = true;
+    await spiffsState.client.format();
+    await refreshSpiffsListing();
+    markSpiffsDirty('SPIFFS formatted. Save to apply.');
+    appendLog('SPIFFS staged format operation.', '[debug]');
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+  } finally {
+    spiffsState.busy = false;
+  }
+}
+
+async function handleSpiffsSave() {
+  if (!spiffsState.client) {
+    spiffsState.status = 'Load a SPIFFS partition first.';
+    return;
+  }
+  if (spiffsState.readOnly) {
+    spiffsState.status = spiffsState.readOnlyReason || 'SPIFFS is read-only.';
+    return;
+  }
+  if (!spiffsState.dirty) {
+    spiffsState.status = 'No staged changes to save.';
+    return;
+  }
+  if (!spiffsState.backupDone) {
+    spiffsState.status = 'Download a backup before saving changes.';
+    return;
+  }
+  const partition = spiffsSelectedPartition.value;
+  if (!partition) {
+    spiffsState.status = 'Select a SPIFFS partition.';
+    return;
+  }
+  const diff = computeSpiffsDiff();
+  const summaryParts = [];
+  if (diff.added.length) summaryParts.push(`Added: ${diff.added.join(', ')}`);
+  if (diff.modified.length) summaryParts.push(`Modified: ${diff.modified.join(', ')}`);
+  if (diff.removed.length) summaryParts.push(`Removed: ${diff.removed.join(', ')}`);
+  const summary =
+    summaryParts.length > 0
+      ? summaryParts.join('\n')
+      : 'No file-level changes detected (still writing updated image).';
+  const confirmed = await showConfirmation({
+    title: 'Write SPIFFS to Flash',
+    message: `${summary}\n\nWrite these changes to flash now?`,
+    confirmText: 'Save to Flash',
+    destructive: true,
+  });
+  if (!confirmed) return;
+  try {
+    spiffsState.saving = true;
+    maintenanceBusy.value = true;
+    const image = await spiffsState.client.toImage();
+    if (image.length > partition.size) {
+      throw new Error('SPIFFS image exceeds partition size.');
+    }
+    await writeSpiffsImage(partition, image);
+    spiffsState.dirty = false;
+    spiffsState.status = 'SPIFFS saved to flash.';
+    appendLog('SPIFFS partition updated on flash.', '[debug]');
+    await loadSpiffsPartition(partition);
+  } catch (error) {
+    spiffsState.error = formatErrorMessage(error);
+    spiffsState.status = 'SPIFFS save failed.';
+  } finally {
+    spiffsState.saving = false;
+    maintenanceBusy.value = false;
+  }
+}
+
+async function writeSpiffsImage(partition, image) {
+  if (!loader.value) {
+    throw new Error('Loader unavailable.');
+  }
+  await releaseTransportReader();
+  const dataString = loader.value.ui8ToBstr(image);
+  await loader.value.writeFlash({
+    fileArray: [{ data: dataString, address: partition.offset }],
+    flashSize: 'keep',
+    flashMode: 'keep',
+    flashFreq: 'keep',
+    eraseAll: false,
+    compress: true,
+    reportProgress: (_fileIndex, written, total) => {
+      spiffsState.status = `Writing SPIFFS... ${written.toLocaleString()} / ${total.toLocaleString()} bytes`;
+    },
+  });
+}
+
 async function readPartitionTable(loader, offset = 0x8000, length = 0x400) {
   try {
     const data = await loader.readFlash(offset, length);
@@ -704,6 +1092,45 @@ const appMetadataError = ref(null);
 const activeAppSlotId = ref(null);
 const appActiveSummary = ref('Active slot unknown.');
 const appMetadataLoaded = ref(false);
+const spiffsState = reactive({
+  selectedId: null,
+  files: [],
+  status: 'Load a SPIFFS partition to begin.',
+  loading: false,
+  busy: false,
+  saving: false,
+  error: null,
+  client: null,
+  readOnly: false,
+  readOnlyReason: '',
+  dirty: false,
+  backupDone: false,
+  diagnostics: [],
+  baselineFiles: [],
+});
+const spiffsPartitions = computed(() =>
+  partitionTable.value
+    .filter(
+      entry =>
+        entry &&
+        typeof entry.type === 'number' &&
+        typeof entry.subtype === 'number' &&
+        entry.type === 0x01 &&
+        entry.subtype === 0x82,
+    )
+    .map(entry => ({
+      id: entry.offset,
+      label: entry.label?.trim() || 'SPIFFS',
+      offset: entry.offset,
+      size: entry.size,
+      sizeText: formatBytes(entry.size) ?? `${entry.size} bytes`,
+    })),
+);
+const spiffsAvailable = computed(() => spiffsPartitions.value.length > 0);
+const spiffsSelectedPartition = computed(() =>
+  spiffsPartitions.value.find(partition => partition.id === spiffsState.selectedId) ?? null,
+);
+const hasSpiffsPartitionSelected = computed(() => Boolean(spiffsSelectedPartition.value));
 const logBuffer = ref('');
 const monitorText = ref('');
 const monitorActive = ref(false);
@@ -738,6 +1165,12 @@ const navigationItems = computed(() => [
     value: 'apps',
     icon: 'mdi-application',
     disabled: !connected.value,
+  },
+  {
+    title: 'SPIFFS Tools',
+    value: 'spiffs',
+    icon: 'mdi-folder-wrench',
+    disabled: !connected.value || !spiffsAvailable.value,
   },
   { title: 'Firmware Tools', value: 'flash', icon: 'mdi-chip', disabled: false },
   { title: 'Serial Monitor', value: 'console', icon: 'mdi-console-line', disabled: false },
@@ -914,6 +1347,9 @@ watch(activeTab, value => {
   if (value === 'apps') {
     void loadAppMetadata();
   }
+  if (value === 'spiffs') {
+    void ensureSpiffsReady();
+  }
 });
 
 watch(
@@ -922,6 +1358,20 @@ watch(
     appMetadataLoaded.value = false;
     if (activeTab.value === 'apps' && connected.value) {
       void loadAppMetadata({ force: true });
+    }
+    if (!connected.value) {
+      resetSpiffsState();
+      return;
+    }
+    if (spiffsPartitions.value.length) {
+      if (!spiffsPartitions.value.some(partition => partition.id === spiffsState.selectedId)) {
+        spiffsState.selectedId = spiffsPartitions.value[0].id;
+      }
+      if (activeTab.value === 'spiffs') {
+        void ensureSpiffsReady();
+      }
+    } else {
+      resetSpiffsState();
     }
   }
 );
@@ -2081,6 +2531,8 @@ async function disconnectTransport() {
     monitorText.value = '';
     monitorAutoResetPerformed = false;
     resetMaintenanceState();
+    resetSpiffsState();
+    spiffsState.selectedId = null;
     currentBaud.value = DEFAULT_FLASH_BAUD;
     baudChangeBusy.value = false;
   }
