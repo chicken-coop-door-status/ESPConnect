@@ -85,9 +85,20 @@
             Save to Flash
           </v-btn>
         </div>
+        <v-alert
+          v-if="!backupDone"
+          type="warning"
+          variant="tonal"
+          density="comfortable"
+          border="start"
+          class="mt-2"
+        >
+          Download a backup image first (use the “Backup” button). “Save to Flash” only becomes
+          available once a backup completes.
+        </v-alert>
         <p class="text-caption text-medium-emphasis mb-0">
-          Always download a backup before saving. Changes are staged in the browser until you click
-          “Save to Flash”.
+          Changes are staged locally until you click “Save to Flash”. A recent backup ensures you can
+          recover if something goes wrong.
         </p>
       </v-card-text>
       <v-progress-linear v-if="loading || saving" indeterminate color="primary" />
