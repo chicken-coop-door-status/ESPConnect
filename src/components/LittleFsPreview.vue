@@ -118,14 +118,23 @@ async function initializeLittleFs() {
   state.status = 'Loading WASM module...';
   console.time('littlefs-init');
   try {
+    console.log('LittleFS preview: loading module entry point...');
     const factory = await loadFactory();
+    console.log('LittleFS preview: module entry resolved, creating FS...');
     state.status = 'Mounting filesystem...';
     state.fs = await factory({ formatOnInit: true });
+    console.log('LittleFS preview: fs instance resolved, refreshing listing...');
     console.timeEnd('littlefs-init');
     state.ready = true;
     state.status = 'LittleFS is ready.';
-    await refreshListing();
+    try {
+      await refreshListing();
+    } catch (refreshError) {
+      console.error('LittleFS preview: refreshListing failed after init', refreshError);
+      throw refreshError;
+    }
   } catch (error) {
+    console.timeEnd('littlefs-init');
     console.error('LittleFS init failed', error);
     state.error =
       error?.message || 'Failed to load the LittleFS module. Confirm the WASM files exist under /public/wasm.';
