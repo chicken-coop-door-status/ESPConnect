@@ -257,7 +257,8 @@
                 <div class="progress-dialog__label">
                   {{ littlefsLoadingDialog.label }}
                 </div>
-                <v-progress-linear indeterminate height="24" color="primary" rounded />
+                <v-progress-linear :model-value="littlefsLoadingDialog.value" :indeterminate="littlefsLoadingDialog.value <= 0"
+                  height="24" color="primary" rounded />
               </v-card-text>
               <v-card-actions class="progress-dialog__actions">
                 <v-spacer />
@@ -335,7 +336,8 @@
                 <div class="progress-dialog__label">
                   {{ fatfsLoadingDialog.label }}
                 </div>
-                <v-progress-linear indeterminate height="24" color="primary" rounded />
+                <v-progress-linear :model-value="fatfsLoadingDialog.value" :indeterminate="fatfsLoadingDialog.value <= 0"
+                  height="24" color="primary" rounded />
               </v-card-text>
               <v-card-actions class="progress-dialog__actions">
                 <v-spacer />
@@ -408,12 +410,13 @@
               <v-card-title class="text-h6">
                 <v-icon start color="primary">mdi-folder-sync</v-icon>
                 Loading SPIFFS
-            </v-card-title>
+              </v-card-title>
               <v-card-text class="progress-dialog__body">
                 <div class="progress-dialog__label">
                   {{ spiffsLoadingDialog.label }}
                 </div>
-                <v-progress-linear indeterminate height="24" color="primary" rounded />
+                <v-progress-linear :model-value="spiffsLoadingDialog.value" :indeterminate="spiffsLoadingDialog.value <= 0"
+                  height="24" color="primary" rounded />
               </v-card-text>
               <v-card-actions class="progress-dialog__actions">
                 <v-spacer />
@@ -990,6 +993,7 @@ async function loadLittlefsPartition(partition) {
   littlefsState.error = null;
   littlefsState.readOnly = false;
   littlefsState.readOnlyReason = '';
+  littlefsLoadingDialog.value = 0;
   littlefsState.loadCancelled = false;
   const littlefsBaudLabel = currentBaud.value ? ` @ ${currentBaud.value.toLocaleString()} bps` : '';
   littlefsState.status = `Reading LittleFS @ 0x${partition.offset.toString(16).toUpperCase()}${littlefsBaudLabel}...`;
@@ -1003,6 +1007,7 @@ async function loadLittlefsPartition(partition) {
       cancelSignal: littlefsLoadCancelRequested,
       onProgress: progress => {
         littlefsLoadingDialog.label = progress.label;
+        littlefsLoadingDialog.value = progress.value ?? 0;
       },
     });
     const module = await loadLittlefsModule();
@@ -1117,6 +1122,7 @@ async function loadLittlefsPartition(partition) {
   } finally {
     littlefsState.loading = false;
     littlefsLoadingDialog.visible = false;
+    littlefsLoadingDialog.value = 0;
     littlefsLoadCancelRequested.value = false;
   }
 }
@@ -1553,6 +1559,7 @@ async function loadFatfsPartition(partition) {
   fatfsState.error = null;
   fatfsState.readOnly = false;
   fatfsState.readOnlyReason = '';
+  fatfsLoadingDialog.value = 0;
   fatfsState.loadCancelled = false;
   const baudLabel = currentBaud.value ? ` @ ${currentBaud.value.toLocaleString()} bps` : '';
   fatfsState.status = `Reading FATFS @ 0x${partition.offset.toString(16).toUpperCase()}${baudLabel}...`;
@@ -1565,6 +1572,7 @@ async function loadFatfsPartition(partition) {
       cancelSignal: fatfsLoadCancelRequested,
       onProgress: progress => {
         fatfsLoadingDialog.label = progress.label;
+        fatfsLoadingDialog.value = progress.value ?? 0;
       },
     });
     const module = await loadFatfsModule();
@@ -1649,6 +1657,7 @@ async function loadFatfsPartition(partition) {
   } finally {
     fatfsState.loading = false;
     fatfsLoadingDialog.visible = false;
+    fatfsLoadingDialog.value = 0;
     fatfsLoadCancelRequested.value = false;
   }
 }
@@ -2345,6 +2354,7 @@ async function loadSpiffsPartition(partition) {
   spiffsState.error = null;
   spiffsState.readOnly = false;
   spiffsState.readOnlyReason = '';
+  spiffsLoadingDialog.value = 0;
   spiffsState.loadCancelled = false;
   const spiffsBaudLabel = currentBaud.value ? ` @ ${currentBaud.value.toLocaleString()} bps` : '';
   spiffsState.status = `Reading SPIFFS @ 0x${partition.offset.toString(16).toUpperCase()}${spiffsBaudLabel}...`;
@@ -2357,6 +2367,7 @@ async function loadSpiffsPartition(partition) {
       cancelSignal: spiffsLoadCancelRequested,
       onProgress: progress => {
         spiffsLoadingDialog.label = progress.label;
+        spiffsLoadingDialog.value = progress.value ?? 0;
       },
     });
     let client;
@@ -2412,6 +2423,7 @@ async function loadSpiffsPartition(partition) {
   } finally {
     spiffsState.loading = false;
     spiffsLoadingDialog.visible = false;
+    spiffsLoadingDialog.value = 0;
     spiffsLoadCancelRequested.value = false;
   }
 }
