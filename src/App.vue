@@ -256,6 +256,12 @@
                 </div>
                 <v-progress-linear indeterminate height="24" color="primary" rounded />
               </v-card-text>
+              <v-card-actions class="progress-dialog__actions">
+                <v-spacer />
+                <v-btn variant="text" :disabled="littlefsLoadCancelRequested" @click="cancelLittlefsLoad">
+                  Cancel
+                </v-btn>
+              </v-card-actions>
             </v-card>
           </v-dialog>
 
@@ -328,6 +334,12 @@
                 </div>
                 <v-progress-linear indeterminate height="24" color="primary" rounded />
               </v-card-text>
+              <v-card-actions class="progress-dialog__actions">
+                <v-spacer />
+                <v-btn variant="text" :disabled="fatfsLoadCancelRequested" @click="cancelFatfsLoad">
+                  Cancel
+                </v-btn>
+              </v-card-actions>
             </v-card>
           </v-dialog>
 
@@ -388,20 +400,26 @@
           </v-card>
         </v-dialog>
 
-        <v-dialog :model-value="spiffsLoadingDialog.visible" persistent max-width="420" class="progress-dialog">
-          <v-card>
-            <v-card-title class="text-h6">
-              <v-icon start color="primary">mdi-folder-sync</v-icon>
-              Loading SPIFFS
+          <v-dialog :model-value="spiffsLoadingDialog.visible" persistent max-width="420" class="progress-dialog">
+            <v-card>
+              <v-card-title class="text-h6">
+                <v-icon start color="primary">mdi-folder-sync</v-icon>
+                Loading SPIFFS
             </v-card-title>
-            <v-card-text class="progress-dialog__body">
-              <div class="progress-dialog__label">
-                {{ spiffsLoadingDialog.label }}
-              </div>
-              <v-progress-linear indeterminate height="24" color="primary" rounded />
-            </v-card-text>
-          </v-card>
-        </v-dialog>
+              <v-card-text class="progress-dialog__body">
+                <div class="progress-dialog__label">
+                  {{ spiffsLoadingDialog.label }}
+                </div>
+                <v-progress-linear indeterminate height="24" color="primary" rounded />
+              </v-card-text>
+              <v-card-actions class="progress-dialog__actions">
+                <v-spacer />
+                <v-btn variant="text" :disabled="spiffsLoadCancelRequested" @click="cancelSpiffsLoad">
+                  Cancel
+                </v-btn>
+              </v-card-actions>
+            </v-card>
+          </v-dialog>
 
         <v-dialog :model-value="spiffsSaveDialog.visible" persistent max-width="420" class="progress-dialog">
           <v-card>
@@ -963,6 +981,7 @@ async function loadLittlefsPartition(partition) {
     littlefsState.error = 'Connect to a device with a LittleFS partition first.';
     return;
   }
+  littlefsLoadCancelRequested.value = false;
   littlefsState.selectedId = partition.id;
   littlefsState.loading = true;
   littlefsState.error = null;
@@ -975,7 +994,13 @@ async function loadLittlefsPartition(partition) {
   const attemptedConfigs = [];
   try {
     await releaseTransportReader();
-    const image = await loader.value.readFlash(partition.offset, partition.size);
+    const image = await readFlashToBuffer(partition.offset, partition.size, {
+      label: partition.label || 'LittleFS',
+      cancelSignal: littlefsLoadCancelRequested,
+      onProgress: progress => {
+        littlefsLoadingDialog.label = progress.label;
+      },
+    });
     const module = await loadLittlefsModule();
     const createLittleFSFromImage =
       typeof module.createLittleFSFromImage === 'function' ? module.createLittleFSFromImage : null;
@@ -1056,18 +1081,25 @@ async function loadLittlefsPartition(partition) {
       '[debug]'
     );
   } catch (error) {
-    littlefsState.client = null;
-    littlefsState.files = [];
-    littlefsState.baselineFiles = [];
-    littlefsState.blockCount = 0;
-    updateLittlefsUsage(partition);
-    littlefsState.error = formatErrorMessage(error);
-    littlefsState.readOnly = true;
-    littlefsState.readOnlyReason = 'LittleFS image unreadable.';
-    littlefsState.status = 'LittleFS is read-only.';
+    const message = formatErrorMessage(error);
+    if (message === FILESYSTEM_LOAD_CANCELLED_MESSAGE) {
+      littlefsState.status = 'LittleFS load cancelled.';
+      littlefsState.error = null;
+    } else {
+      littlefsState.client = null;
+      littlefsState.files = [];
+      littlefsState.baselineFiles = [];
+      littlefsState.blockCount = 0;
+      updateLittlefsUsage(partition);
+      littlefsState.error = message;
+      littlefsState.readOnly = true;
+      littlefsState.readOnlyReason = 'LittleFS image unreadable.';
+      littlefsState.status = 'LittleFS is read-only.';
+    }
   } finally {
     littlefsState.loading = false;
     littlefsLoadingDialog.visible = false;
+    littlefsLoadCancelRequested.value = false;
   }
 }
 
@@ -1154,6 +1186,14 @@ function cancelLittlefsBackup() {
   }
   littlefsBackupDialog.label = 'Stopping backup...';
   handleCancelDownload();
+}
+
+function cancelLittlefsLoad() {
+  if (!littlefsLoadingDialog.visible || littlefsLoadCancelRequested.value) {
+    return;
+  }
+  littlefsLoadCancelRequested.value = true;
+  littlefsLoadingDialog.label = 'Stopping LittleFS load...';
 }
 
 async function handleLittlefsRestore(file) {
@@ -1489,6 +1529,7 @@ async function loadFatfsPartition(partition) {
     fatfsState.error = 'Connect to a device with a FATFS partition first.';
     return;
   }
+  fatfsLoadCancelRequested.value = false;
   fatfsState.selectedId = partition.id;
   fatfsState.loading = true;
   fatfsState.error = null;
@@ -1500,7 +1541,13 @@ async function loadFatfsPartition(partition) {
   fatfsLoadingDialog.label = `Reading ${partition.label || 'FATFS'}${baudLabel}...`;
   try {
     await releaseTransportReader();
-    const image = await loader.value.readFlash(partition.offset, partition.size);
+    const image = await readFlashToBuffer(partition.offset, partition.size, {
+      label: partition.label || 'FATFS',
+      cancelSignal: fatfsLoadCancelRequested,
+      onProgress: progress => {
+        fatfsLoadingDialog.label = progress.label;
+      },
+    });
     const module = await loadFatfsModule();
     const createFatFSFromImage =
       typeof module.createFatFSFromImage === 'function' ? module.createFatFSFromImage : null;
@@ -1554,17 +1601,24 @@ async function loadFatfsPartition(partition) {
       '[debug]'
     );
   } catch (error) {
-    fatfsState.client = null;
-    fatfsState.files = [];
-    fatfsState.baselineFiles = [];
-    updateFatfsUsage(partition);
-    fatfsState.error = formatErrorMessage(error);
-    fatfsState.readOnly = true;
-    fatfsState.readOnlyReason = 'FATFS image unreadable.';
-    fatfsState.status = 'FATFS is read-only.';
+    const message = formatErrorMessage(error);
+    if (message === FILESYSTEM_LOAD_CANCELLED_MESSAGE) {
+      fatfsState.status = 'FATFS load cancelled.';
+      fatfsState.error = null;
+    } else {
+      fatfsState.client = null;
+      fatfsState.files = [];
+      fatfsState.baselineFiles = [];
+      updateFatfsUsage(partition);
+      fatfsState.error = message;
+      fatfsState.readOnly = true;
+      fatfsState.readOnlyReason = 'FATFS image unreadable.';
+      fatfsState.status = 'FATFS is read-only.';
+    }
   } finally {
     fatfsState.loading = false;
     fatfsLoadingDialog.visible = false;
+    fatfsLoadCancelRequested.value = false;
   }
 }
 
@@ -1651,6 +1705,14 @@ function cancelFatfsBackup() {
   }
   fatfsBackupDialog.label = 'Stopping backup...';
   handleCancelDownload();
+}
+
+function cancelFatfsLoad() {
+  if (!fatfsLoadingDialog.visible || fatfsLoadCancelRequested.value) {
+    return;
+  }
+  fatfsLoadCancelRequested.value = true;
+  fatfsLoadingDialog.label = 'Stopping FATFS load...';
 }
 
 async function handleFatfsRestore(file) {
@@ -2243,6 +2305,7 @@ async function loadSpiffsPartition(partition) {
     spiffsState.error = 'Connect to a device with a SPIFFS partition first.';
     return;
   }
+  spiffsLoadCancelRequested.value = false;
   spiffsState.selectedId = partition.id;
   spiffsState.loading = true;
   spiffsState.error = null;
@@ -2254,7 +2317,13 @@ async function loadSpiffsPartition(partition) {
   spiffsLoadingDialog.label = `Reading ${partition.label || 'SPIFFS'}${spiffsBaudLabel}...`;
   try {
     await releaseTransportReader();
-    const image = await loader.value.readFlash(partition.offset, partition.size);
+    const image = await readFlashToBuffer(partition.offset, partition.size, {
+      label: partition.label || 'SPIFFS',
+      cancelSignal: spiffsLoadCancelRequested,
+      onProgress: progress => {
+        spiffsLoadingDialog.label = progress.label;
+      },
+    });
     let client;
     try {
       client = await InMemorySpiffsClient.fromImage(image);
@@ -2285,11 +2354,18 @@ async function loadSpiffsPartition(partition) {
       '[debug]'
     );
   } catch (error) {
-    spiffsState.error = formatErrorMessage(error);
-    spiffsState.status = 'Failed to read SPIFFS.';
+    const message = formatErrorMessage(error);
+    if (message === FILESYSTEM_LOAD_CANCELLED_MESSAGE) {
+      spiffsState.status = 'SPIFFS load cancelled.';
+      spiffsState.error = null;
+    } else {
+      spiffsState.error = message;
+      spiffsState.status = 'Failed to read SPIFFS.';
+    }
   } finally {
     spiffsState.loading = false;
     spiffsLoadingDialog.visible = false;
+    spiffsLoadCancelRequested.value = false;
   }
 }
 
@@ -2603,6 +2679,14 @@ function cancelSpiffsBackup() {
   handleCancelDownload();
 }
 
+function cancelSpiffsLoad() {
+  if (!spiffsLoadingDialog.visible || spiffsLoadCancelRequested.value) {
+    return;
+  }
+  spiffsLoadCancelRequested.value = true;
+  spiffsLoadingDialog.label = 'Stopping SPIFFS load...';
+}
+
 async function handleSpiffsUpload({ file }) {
   if (!spiffsState.client) return;
   if (spiffsState.readOnly) {
@@ -2809,6 +2893,72 @@ async function writeFilesystemImage(partition, image, options = {}) {
   });
 }
 
+const FILESYSTEM_LOAD_CANCELLED_MESSAGE = 'Filesystem load cancelled by user';
+const FLASH_READ_MAX_CHUNK = 0x10000;
+const FLASH_READ_MIN_CHUNK = 0x1000;
+
+async function readFlashToBuffer(offset, length, options = {}) {
+  if (!loader.value) {
+    throw new Error('Device not connected.');
+  }
+  if (!Number.isSafeInteger(offset) || offset < 0) {
+    throw new Error('Invalid flash offset.');
+  }
+  if (!Number.isSafeInteger(length) || length <= 0) {
+    throw new Error('Invalid flash length.');
+  }
+  const cancelSignal = options.cancelSignal;
+  const label = options.label || 'filesystem';
+  const chunkBuffers = [];
+  const chunkSize = Math.max(FLASH_READ_MIN_CHUNK, Math.min(FLASH_READ_MAX_CHUNK, length));
+  let totalReceived = 0;
+  while (totalReceived < length) {
+    if (cancelSignal?.value) {
+      throw new Error(FILESYSTEM_LOAD_CANCELLED_MESSAGE);
+    }
+    const remaining = length - totalReceived;
+    const currentChunkSize = Math.min(chunkSize, remaining);
+    const chunkOffset = offset + totalReceived;
+    const chunkBase = totalReceived;
+    const chunk = await loader.value.readFlash(
+      chunkOffset,
+      currentChunkSize,
+      (_packet, received) => {
+        const chunkReceived = Math.min(received, currentChunkSize);
+        const overallReceived = chunkBase + chunkReceived;
+        const progressValue = length ? Math.min(100, Math.floor((overallReceived / length) * 100)) : 0;
+        let progressLabel = `Reading ${label} - ${overallReceived.toLocaleString()} of ${length.toLocaleString()} bytes`;
+        if (cancelSignal?.value) {
+          progressLabel = `Stopping read of ${label} after current chunk... (${overallReceived.toLocaleString()} of ${length.toLocaleString()} bytes)`;
+        }
+        if (typeof options.onProgress === 'function') {
+          options.onProgress({
+            value: progressValue,
+            label: progressLabel,
+            written: overallReceived,
+            total: length,
+          });
+        }
+      }
+    );
+    chunkBuffers.push(chunk);
+    totalReceived += chunk.length;
+  }
+  if (cancelSignal?.value) {
+    throw new Error(FILESYSTEM_LOAD_CANCELLED_MESSAGE);
+  }
+  if (chunkBuffers.length === 1) {
+    return chunkBuffers[0];
+  }
+  const buffer = new Uint8Array(totalReceived);
+  let writeOffset = 0;
+  for (const chunk of chunkBuffers) {
+    buffer.set(chunk, writeOffset);
+    writeOffset += chunk.length;
+  }
+  return buffer;
+}
+
 async function readPartitionTable(loader, offset = 0x8000, length = 0x400) {
   try {
     const data = await loader.readFlash(offset, length);
@@ -2925,6 +3075,9 @@ const baudChangeBusy = ref(false);
 const maintenanceBusy = ref(false);
 const downloadProgress = reactive({ visible: false, value: 0, label: '' });
 const downloadCancelRequested = ref(false);
+const littlefsLoadCancelRequested = ref(false);
+const fatfsLoadCancelRequested = ref(false);
+const spiffsLoadCancelRequested = ref(false);
 const registerAddress = ref('0x0');
 const registerValue = ref('');
 const registerReadResult = ref(null);
