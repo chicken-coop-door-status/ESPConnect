@@ -222,6 +222,24 @@
           </v-card>
         </v-dialog>
 
+        <v-dialog :model-value="connectDialog.visible" persistent max-width="420" class="progress-dialog">
+          <v-card>
+            <v-card-title class="text-h6">
+              <v-icon start color="primary">mdi-usb</v-icon>
+              Connecting
+            </v-card-title>
+            <v-card-text class="progress-dialog__body">
+              <div class="progress-dialog__label">
+                {{ connectDialog.label }}
+              </div>
+              <div class="text-body-2 text-medium-emphasis" v-if="connectDialog.message">
+                {{ connectDialog.message }}
+              </div>
+              <v-progress-linear class="mt-4" indeterminate height="6" color="primary" rounded />
+            </v-card-text>
+          </v-card>
+        </v-dialog>
+
         <v-dialog :model-value="littlefsBackupDialog.visible" persistent max-width="420" class="progress-dialog">
           <v-card>
             <v-card-title class="text-h6">
@@ -548,10 +566,8 @@ import DisconnectedState from './components/DisconnectedState.vue';
 import registerGuides from './data/register-guides.json';
 import { InMemorySpiffsClient } from './utils/spiffs/spiffsClient';
 
-const APP_NAME = 'ESPConnect';
 const APP_VERSION = '1.02';
-const APP_TAGLINE = 'Flash, back up, and troubleshoot your ESP32 straight from the browser.';
-
+const TIMEOUT_CONNECT = 1000;
 const SUPPORTED_VENDORS = [
   { usbVendorId: 0x303a },
   { usbVendorId: 0x1a86 },
@@ -3253,6 +3269,12 @@ const spiffsBackupDialog = reactive({
   value: 0,
   label: '',
 });
+const connectDialog = reactive({
+  visible: false,
+  label: 'Connecting...',
+  message: '',
+});
+let connectDialogTimer = null;
 const spiffsLoadingDialog = reactive({
   visible: false,
   value: 0,
@@ -5008,6 +5030,13 @@ async function connect() {
   monitorAutoResetPerformed = false;
   serialMonitorClosedPrompt.value = false;
   resetMaintenanceState();
+  connectDialog.visible = false;
+  connectDialog.label = 'Connecting to ESP device...';
+  connectDialog.message = 'Opening serial port...';
+  if (connectDialogTimer) {
+    clearTimeout(connectDialogTimer);
+    connectDialogTimer = null;
+  }
 
   logBuffer.value = '';
   partitionTable.value = [];
@@ -5016,12 +5045,16 @@ async function connect() {
   try {
     showBootDialog.value = false;
     currentPort.value = await navigator.serial.requestPort({ filters: SUPPORTED_VENDORS });
+    connectDialogTimer = setTimeout(() => {
+      connectDialog.visible = true;
+    }, TIMEOUT_CONNECT);
     const desiredBaud = Number.parseInt(selectedBaud.value, 10) || DEFAULT_FLASH_BAUD;
     const connectBaud = DEFAULT_ROM_BAUD;
     lastFlashBaud.value = desiredBaud;
     const portDetails = currentPort.value?.getInfo ? currentPort.value.getInfo() : null;
     transport.value = new Transport(currentPort.value, DEBUG_SERIAL);
     transport.value.tracing = DEBUG_SERIAL;
+    connectDialog.message = 'Handshaking with ROM bootloader...';
     loader.value = new ESPLoader({
       transport: transport.value,
       baudrate: connectBaud,
@@ -5031,6 +5064,7 @@ async function connect() {
     currentBaud.value = connectBaud;
     transport.value.baudrate = connectBaud;
 
+    connectDialog.message = 'Reading chip information...';
     const chipName = await loader.value.main();
     const chip = loader.value.chip;
     connected.value = true;
@@ -5329,6 +5363,12 @@ async function connect() {
     }
     await disconnectTransport();
   } finally {
+    if (connectDialogTimer) {
+      clearTimeout(connectDialogTimer);
+      connectDialogTimer = null;
+    }
+    connectDialog.visible = false;
+    connectDialog.message = '';
     busy.value = false;
     appendLog(`Connect flow finished (busy=${busy.value}).`, '[ESPConnect-Debug]');
   }
