@@ -3022,11 +3022,11 @@ async function detectFilesystemType(loader, offset, size) {
     // Read first 8KB to scan for filesystem signature
     const readSize = Math.min(8192, size);
     const data = await loader.readFlash(offset, readSize);
-    
+
     if (data.length < 32) {
       return 'spiffs';
     }
-    
+
     // Check for "littlefs" ASCII string in the data
     // LittleFS stores this string in its superblock
     const textDecoder = new TextDecoder('ascii');
@@ -3035,7 +3035,7 @@ async function detectFilesystemType(loader, offset, size) {
       appendLog('LittleFS detected: found "littlefs" string in partition data');
       return 'littlefs';
     }
-    
+
     // If no "littlefs" string found, assume SPIFFS
     appendLog('SPIFFS assumed: no "littlefs" string found in partition data');
     return 'spiffs';
@@ -3067,7 +3067,7 @@ async function readPartitionTable(loader, offset = 0x8000, length = 0x400) {
         .trim();
       entries.push({ label: label || `type 0x${type.toString(16)}`, type, subtype, offset: addr, size });
     }
-    
+
     // Detect filesystem type for 0x82 partitions
     for (const entry of entries) {
       if (entry.type === 0x01 && entry.subtype === 0x82) {
@@ -3075,7 +3075,7 @@ async function readPartitionTable(loader, offset = 0x8000, length = 0x400) {
         appendLog(`Partition "${entry.label}" at 0x${entry.offset.toString(16)}: detected as ${entry.detectedFilesystem}`);
       }
     }
-    
+
     return entries;
   } catch (err) {
     appendLog('Failed to read partition table', err);
@@ -3383,8 +3383,8 @@ const littleFsPartitions = computed(() =>
         return false;
       }
       // LittleFS: dedicated subtype 0x83 OR 0x82 with detected LittleFS
-      return entry.subtype === 0x83 || 
-             (entry.subtype === 0x82 && entry.detectedFilesystem === 'littlefs');
+      return entry.subtype === 0x83 ||
+        (entry.subtype === 0x82 && entry.detectedFilesystem === 'littlefs');
     })
     .map(entry => ({
       id: entry.offset,
@@ -5077,6 +5077,7 @@ async function connect() {
       );
     }
 
+    connectDialog.message = 'Selecting baud rate...';
     if (desiredBaud !== connectBaud) {
       try {
         await setConnectionBaud(desiredBaud, { remember: true, log: true, updateDropdown: false });
@@ -5105,6 +5106,7 @@ async function connect() {
 
     const callChip = async method => {
       const fn = chip?.[method];
+      connectDialog.message = `Reading ${method}...`;
       if (typeof fn === 'function') {
         try {
           const result = await fn.call(chip, loader.value);
@@ -5126,6 +5128,7 @@ async function connect() {
     const crystalFreq = await callChip('getCrystalFreq');
     const macAddress = await callChip('readMac');
 
+    connectDialog.message = `Reading Flash size...`;
     let flashSizeRaw = undefined;
     try {
       if (typeof loader.value.detectFlashSize === 'function') {
@@ -5178,6 +5181,7 @@ async function connect() {
       '[ESPConnect-Debug]'
     );
 
+    connectDialog.message = `Preparing information...`;
     const featureList = Array.isArray(featuresRaw)
       ? featuresRaw
       : typeof featuresRaw === 'string'
@@ -5319,6 +5323,7 @@ async function connect() {
       pushFact('eFuse Block Version', `v${blockVersionMajor}.${blockVersionMinor}`);
     }
 
+    connectDialog.message = `Reading partition table...`;
     const partitions = await readPartitionTable(loader.value);
     partitionTable.value = partitions;
     appMetadataLoaded.value = false;
