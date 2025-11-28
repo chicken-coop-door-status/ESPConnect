@@ -552,7 +552,6 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue';
-import { ESPLoader, Transport } from 'esptool-js';
 import { useTheme } from 'vuetify';
 import DeviceInfoTab from './components/DeviceInfoTab.vue';
 import FlashFirmwareTab from './components/FlashFirmwareTab.vue';
@@ -565,6 +564,8 @@ import SerialMonitorTab from './components/SerialMonitorTab.vue';
 import DisconnectedState from './components/DisconnectedState.vue';
 import registerGuides from './data/register-guides.json';
 import { InMemorySpiffsClient } from './utils/spiffs/spiffsClient';
+import { createConnection, requestSerialPort } from './services/connectionService';
+import { readPartitionTable } from './utils/partitions';
 
 const APP_VERSION = '1.03';
 const TIMEOUT_CONNECT = 1000;
@@ -3017,72 +3018,6 @@ async function readFlashToBuffer(offset, length, options = {}) {
   return buffer;
 }
 
-async function detectFilesystemType(loader, offset, size) {
-  try {
-    // Read first 8KB to scan for filesystem signature
-    const readSize = Math.min(8192, size);
-    const data = await loader.readFlash(offset, readSize);
-
-    if (data.length < 32) {
-      return 'spiffs';
-    }
-
-    // Check for "littlefs" ASCII string in the data
-    // LittleFS stores this string in its superblock
-    const textDecoder = new TextDecoder('ascii');
-    const dataStr = textDecoder.decode(data);
-    if (dataStr.includes('littlefs')) {
-      appendLog('LittleFS detected: found "littlefs" string in partition data');
-      return 'littlefs';
-    }
-
-    // If no "littlefs" string found, assume SPIFFS
-    appendLog('SPIFFS assumed: no "littlefs" string found in partition data');
-    return 'spiffs';
-  } catch (err) {
-    appendLog('Failed to detect filesystem type', err);
-    // On error, default to SPIFFS
-    return 'spiffs';
-  }
-}
-
-async function readPartitionTable(loader, offset = 0x8000, length = 0x400) {
-  try {
-    const data = await loader.readFlash(offset, length);
-    const view = new DataView(data.buffer, data.byteOffset, data.byteLength);
-    const decoder = new TextDecoder();
-    const entries = [];
-    for (let i = 0; i + 32 <= data.length; i += 32) {
-      const magic = view.getUint16(i, true);
-      if (magic === 0xffff || magic === 0x0000) break;
-      if (magic !== 0x50aa) continue;
-      const type = view.getUint8(i + 2);
-      const subtype = view.getUint8(i + 3);
-      const addr = view.getUint32(i + 4, true);
-      const size = view.getUint32(i + 8, true);
-      const labelBytes = data.subarray(i + 12, i + 28);
-      const label = decoder
-        .decode(labelBytes)
-        .replace(/\0/g, '')
-        .trim();
-      entries.push({ label: label || `type 0x${type.toString(16)}`, type, subtype, offset: addr, size });
-    }
-
-    // Detect filesystem type for 0x82 partitions
-    for (const entry of entries) {
-      if (entry.type === 0x01 && entry.subtype === 0x82) {
-        entry.detectedFilesystem = await detectFilesystemType(loader, entry.offset, entry.size);
-        appendLog(`Partition "${entry.label}" at 0x${entry.offset.toString(16)}: detected as ${entry.detectedFilesystem}`);
-      }
-    }
-
-    return entries;
-  } catch (err) {
-    appendLog('Failed to read partition table', err);
-    return [];
-  }
-}
-
 function resolvePackageLabel(chipKey, pkgVersion, chipRevision) {
   const mapper = PACKAGE_LABELS[chipKey];
   if (!mapper || typeof pkgVersion !== 'number' || Number.isNaN(pkgVersion)) {
@@ -5044,7 +4979,7 @@ async function connect() {
 
   try {
     showBootDialog.value = false;
-    currentPort.value = await navigator.serial.requestPort({ filters: SUPPORTED_VENDORS });
+    currentPort.value = await requestSerialPort(SUPPORTED_VENDORS);
     connectDialogTimer = setTimeout(() => {
       connectDialog.visible = true;
     }, TIMEOUT_CONNECT);
@@ -5052,15 +4987,14 @@ async function connect() {
     const connectBaud = DEFAULT_ROM_BAUD;
     lastFlashBaud.value = desiredBaud;
     const portDetails = currentPort.value?.getInfo ? currentPort.value.getInfo() : null;
-    transport.value = new Transport(currentPort.value, DEBUG_SERIAL);
+    const connection = createConnection(currentPort.value, connectBaud, terminal, {
+      debugSerial: DEBUG_SERIAL,
+      debugLogging: false,
+    });
+    transport.value = connection.transport;
     transport.value.tracing = DEBUG_SERIAL;
     connectDialog.message = 'Handshaking with ROM bootloader...';
-    loader.value = new ESPLoader({
-      transport: transport.value,
-      baudrate: connectBaud,
-      terminal,
-      debugLogging: false
-    });
+    loader.value = connection.loader;
     currentBaud.value = connectBaud;
     transport.value.baudrate = connectBaud;
 
@@ -5329,7 +5263,7 @@ async function connect() {
       partitionTable.value = [];
       appMetadataLoaded.value = false;
     } else {
-      const partitions = await readPartitionTable(loader.value);
+      const partitions = await readPartitionTable(loader.value, undefined, undefined, appendLog);
       partitionTable.value = partitions;
       appMetadataLoaded.value = false;
     }
