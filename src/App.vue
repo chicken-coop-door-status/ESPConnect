@@ -5324,9 +5324,15 @@ async function connect() {
     }
 
     connectDialog.message = `Reading partition table...`;
-    const partitions = await readPartitionTable(loader.value);
-    partitionTable.value = partitions;
-    appMetadataLoaded.value = false;
+    if (chip?.CHIP_NAME === 'ESP8266') {
+      appendLog('Skipping partition table read for ESP8266 (not supported).', '[ESPConnect-Debug]');
+      partitionTable.value = [];
+      appMetadataLoaded.value = false;
+    } else {
+      const partitions = await readPartitionTable(loader.value);
+      partitionTable.value = partitions;
+      appMetadataLoaded.value = false;
+    }
 
     if (portDetails) {
       pushFact('USB Bridge', formatUsbBridge(portDetails));
