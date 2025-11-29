@@ -1,9 +1,9 @@
 # Changelog
 
 ## 1.0.4
-- Serial monitor now supports filtering output live via a search box ().
+- Serial monitor now supports filtering output live via a search box ([issue #12](https://github.com/thelastoutpostworkshop/ESPConnect/issues/12)).
 - Partition map keeps very small partitions visible with normalized minimum widths ([issue #20](https://github.com/thelastoutpostworkshop/ESPConnect/issues/20)).
-- Device info fact cards now use a packed grid layout to remove excessive gaps ([issue #12](https://github.com/thelastoutpostworkshop/ESPConnect/issues/12)).
+- Device info fact cards now use a packed grid layout to remove excessive gaps .
 
 ## 1.0.3
 - Added a port-busy warning dialog when the serial device is in use, instead of showing bootloader tips.
