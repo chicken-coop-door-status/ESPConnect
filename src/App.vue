@@ -922,6 +922,8 @@ async function loadLittlefsPartition(partition) {
     }
     littlefsState.client = client;
     littlefsState.currentPath = '/';
+    const rootEntries = client.list?.('/') ?? [];
+    littlefsState.allFiles = normalizeLittlefsEntries(rootEntries, '/');
     const entries = client.list?.(littlefsState.currentPath) ?? [];
     littlefsState.files = normalizeLittlefsEntries(entries, littlefsState.currentPath);
     try {
@@ -983,6 +985,8 @@ async function refreshLittlefsListing() {
   if (!littlefsState.client) {
     return;
   }
+  const rootEntries = littlefsState.client.list?.('/') ?? [];
+  littlefsState.allFiles = normalizeLittlefsEntries(rootEntries, '/');
   const entries = littlefsState.client.list?.(littlefsState.currentPath || '/') ?? [];
   littlefsState.files = normalizeLittlefsEntries(entries, littlefsState.currentPath);
   try {
@@ -2248,6 +2252,7 @@ function resetLittlefsState() {
   littlefsState.sessionBackupDone = false;
   littlefsState.baselineFiles = [];
   littlefsState.currentPath = '/';
+  littlefsState.allFiles = [];
   littlefsState.usage = {
     capacityBytes: 0,
     usedBytes: 0,
@@ -2266,7 +2271,8 @@ function updateLittlefsUsage(partition = littlefsSelectedPartition.value) {
     littlefsState.blockSize && littlefsState.blockCount
       ? littlefsState.blockSize * littlefsState.blockCount
       : partitionSize;
-  const usedBytes = littlefsState.files.reduce((sum, file) => sum + (file.size ?? 0), 0);
+  const source = littlefsState.allFiles?.length ? littlefsState.allFiles : littlefsState.files;
+  const usedBytes = source.reduce((sum, file) => sum + (file.size ?? 0), 0);
   littlefsState.usage = {
     capacityBytes,
     usedBytes,

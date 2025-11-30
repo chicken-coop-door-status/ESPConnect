@@ -59,7 +59,8 @@ export function useLittlefsManager(defaultBlockSize: number) {
   const littlefsState = reactive({
     selectedId: null as number | null,
     client: null as unknown,
-    files: [] as Array<{ name?: string; size?: number }>,
+    files: [] as Array<{ name?: string; size?: number; path?: string; type?: string }>,
+    allFiles: [] as Array<{ name?: string; size?: number; path?: string; type?: string }>,
     currentPath: '/' as string,
     status: 'Load a LittleFS partition to begin.',
     loading: false,
