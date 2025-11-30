@@ -403,23 +403,53 @@ function handleDragLeave() {
 function handleDrop(event) {
   if (props.readOnly || !props.hasClient || props.loading || props.busy || props.saving) return;
   dragActive.value = false;
-  const files = Array.from(event.dataTransfer?.files ?? []).filter(file => file instanceof File);
-  if (!files.length) return;
-  dropQueue.value.push(...files);
-  processDropQueue();
+  const items = Array.from(event.dataTransfer?.items ?? []);
+  if (!items.length) return;
+  processDroppedItems(items);
 }
 
-function processDropQueue() {
-  if (!dropQueue.value.length) return;
-  for (const file of dropQueue.value) {
-    emit('upload-file', { file });
+async function processDroppedItems(items) {
+  const uploadEntries = [];
+
+  async function traverseEntry(entry, pathPrefix = '') {
+    if (!entry) return;
+    if (entry.isFile) {
+      const file = await new Promise(resolve => entry.file(resolve));
+      uploadEntries.push({ file, path: pathPrefix ? `${pathPrefix}/${file.name}` : file.name });
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      const entries = await new Promise((resolve, reject) => {
+        reader.readEntries(resolve, reject);
+      });
+      const prefix = pathPrefix ? `${pathPrefix}/${entry.name}` : entry.name;
+      if (!entries.length) {
+        // empty folder: create via upload-file with a placeholder path (handled upstream as mkdir)
+        uploadEntries.push({ file: null, path: prefix, isDir: true });
+      }
+      for (const child of entries) {
+        await traverseEntry(child, prefix);
+      }
+    }
   }
-  dropQueue.value = [];
+
+  for (const item of items) {
+    const entry = item.webkitGetAsEntry ? item.webkitGetAsEntry() : null;
+    if (entry) {
+      await traverseEntry(entry);
+    } else {
+      const file = item.getAsFile();
+      if (file) uploadEntries.push({ file, path: file.name });
+    }
+  }
+
+  for (const entry of uploadEntries) {
+    emit('upload-file', entry);
+  }
 }
 
 function submitUpload() {
   if (!uploadFile.value) return;
-  emit('upload-file', { file: uploadFile.value });
+  emit('upload-file', { file: uploadFile.value, path: uploadFile.value.name });
   uploadFile.value = null;
 }
 

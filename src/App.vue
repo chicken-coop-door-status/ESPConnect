@@ -1156,7 +1156,7 @@ function handleLittlefsUploadSelection(file) {
   littlefsState.uploadBlockedReason = '';
 }
 
-async function handleLittlefsUpload({ file }) {
+async function handleLittlefsUpload({ file, path, isDir }) {
   if (!littlefsState.client) return;
   if (littlefsState.readOnly) {
     littlefsState.status = littlefsState.readOnlyReason || 'LittleFS is read-only.';
@@ -1171,6 +1171,9 @@ async function handleLittlefsUpload({ file }) {
     return;
   }
   if (!file) {
+    if (isDir && path) {
+      await handleLittlefsNewFolder(path);
+    }
     littlefsState.status = 'Select a file to upload.';
     showToast(littlefsState.status, { color: 'info' });
     return;
@@ -1184,7 +1187,21 @@ async function handleLittlefsUpload({ file }) {
   try {
     littlefsState.busy = true;
     const data = new Uint8Array(await file.arrayBuffer());
-    const targetPath = joinFsPath(littlefsState.currentPath || '/', targetName);
+    const relativePath = path || targetName;
+    const targetPath = joinFsPath(littlefsState.currentPath || '/', relativePath);
+    // ensure parent directories
+    const segments = targetPath.split('/').filter(Boolean);
+    let built = '';
+    if (segments.length > 1 && typeof littlefsState.client.mkdir === 'function') {
+      for (let i = 0; i < segments.length - 1; i++) {
+        built += `/${segments[i]}`;
+        try {
+          littlefsState.client.mkdir(built);
+        } catch (e) {
+          // ignore if exists
+        }
+      }
+    }
     if (typeof littlefsState.client.writeFile === 'function') {
       littlefsState.client.writeFile(targetPath, data);
     } else if (typeof littlefsState.client.addFile === 'function') {
