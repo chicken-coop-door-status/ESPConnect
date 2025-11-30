@@ -54,6 +54,35 @@ ESPConnect is a browser-based control center for ESP32- and ESP8266-class boards
 - You can change baud rate even after connecting. If transfers stall, drop to 460800 or 115200 bps.  
 - Cancelling a flash or download pauses safely. Simply run it again when you’re ready.  
 
+## Running ESPConnect Locally
+ESPConnect is a **pure in-browser web application** — no backend, no installation required, and all operations happen directly in your browser using Web Serial / WebUSB.
+### 1. Development Mode (Recommended for Contributors)
+
+If you want to modify the source code or run ESPConnect in development mode, use the Vite dev server.
+
+```bash
+git clone https://github.com/thelastoutpostworkshop/ESPConnect.git
+cd ESPConnect
+npm install
+npm run dev
+```
+### 2. Run the Built Version Locally (Static Server)
+Step 1 — Build the App
+```bash
+npm install
+npm run build
+```
+Step 2 — Serve the dist/ Folder, you may use any of the following options:
+> Option A — Node “serve”
+```bash
+cd dist
+npx serve .
+```
+> Option B — Python 3
+```bash
+cd dist
+python -m http.server 8080
+```
 ## Privacy & Security
 ESPConnect runs fully in your browser—there is no backend, account, or telemetry. Firmware files, backups, and diagnostics stay local and only move when you download them yourself. Always flash firmware from trusted sources.
 
