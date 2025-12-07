@@ -5119,7 +5119,8 @@ async function connect() {
     busyDialogMessage.value = '';
     showBootDialog.value = false;
     showGeneralErrorDialog.value = false;
-    currentPort.value = await requestSerialPort(SUPPORTED_VENDORS);
+    // currentPort.value = await requestSerialPort(SUPPORTED_VENDORS);
+    currentPort.value = await requestSerialPort();
     connectDialogTimer = setTimeout(() => {
       connectDialog.visible = true;
     }, TIMEOUT_CONNECT);
