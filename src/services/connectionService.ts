@@ -6,19 +6,3 @@ export async function requestSerialPort(filters?: SerialPortFilter[]) {
   }
   return navigator.serial.requestPort(filters ? { filters } : undefined);
 }
-
-export function createConnection(
-  port: SerialPort,
-  baudrate: number,
-  terminal: unknown,
-  options: { debugSerial?: boolean; debugLogging?: boolean } = {},
-) {
-  const client = createEsptoolClient({
-    port,
-    terminal,
-    desiredBaud: baudrate,
-    debugSerial: options.debugSerial,
-    debugLogging: options.debugLogging,
-  });
-  return { transport: client.transport, loader: client.loader };
-}
