@@ -36,7 +36,7 @@
                   <div v-if="primaryFacts.length" class="summary-list">
                     <div v-for="fact in primaryFacts" :key="fact.label" class="summary-list__item">
                       <v-icon size="16" class="me-1">{{ fact.icon || 'mdi-information-outline' }}</v-icon>
-                      <span>{{ fact.value }}</span>
+                      <span>{{ fact.label }} : {{ fact.value }}</span>
                     </div>
                   </div>
                 </div>

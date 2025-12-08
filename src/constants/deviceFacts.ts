@@ -16,13 +16,13 @@ export const FACT_ICONS: Record<string, string> = {
 };
 
 export const PRIMARY_FACTS = [
-    'Embedded Flash',
-    'Embedded PSRAM',
-    'Flash Device',
-    'Max CPU Frequency',
-    'Connection Baud',
-    'USB Bridge',
-    'CPU Cores',
+  'CPU Cores',
+  'Max CPU Frequency',
+  'Embedded PSRAM',
+  'Flash Device',
+  'USB Bridge',
+  'Connection Baud',
+  'Embedded Flash',
   ];
 
 export const FACT_GROUP_CONFIG = [
