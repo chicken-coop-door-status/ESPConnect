@@ -5151,10 +5151,14 @@ async function connect() {
     let desiredBaud = Number.parseInt(selectedBaud.value, 10) || DEFAULT_FLASH_BAUD;
     const connectBaud_defaultROM = DEFAULT_ROM_BAUD;
     lastFlashBaud.value = desiredBaud;
+
+    // Get port and usb bridge information
     const portDetails = currentPort.value?.getInfo ? currentPort.value.getInfo() : null;
     const usbBridge = portDetails ? formatUsbBridge(portDetails) : "Unknown";
     const bridge = getUsbDeviceInfo(portDetails.usbVendorId, portDetails.usbProductId);
+
     if (bridge.productName === 'CH340' && desiredBaud > bridge.maxBaudrate) {
+      // Reduce baud rate for CH340
       desiredBaud = bridge.maxBaudrate;
       lastFlashBaud.value = desiredBaud;
       const previousSuspendState = suspendBaudWatcher;
@@ -5165,11 +5169,6 @@ async function connect() {
       });
       showToast('Detected CH340 bridge; lowering baud to ' + desiredBaud + ' bps for stability.', { color: 'warning' });
       appendLog('Detected CH340 bridge; lowering baud to ' + desiredBaud + ' bps.', '[ESPConnect-Debug]');
-    } else {
-      // Determine if a higher baud rate is available
-      // if (lastFlashBaud.value < MAX_SUPPORTED_BAUDRATE) {
-      //   higherBaudrateAvailable.value = true;
-      // }
     }
 
     const esptool = createEsptoolClient({
