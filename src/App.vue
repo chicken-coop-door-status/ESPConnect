@@ -5233,17 +5233,6 @@ async function connect() {
       '[ESPConnect-Debug]'
     );
 
-    const packageVersion = metadata.pkgVersion;
-    const chipRevision = metadata.chipRevision;
-    const majorVersion = metadata.majorVersion;
-    const minorVersion = metadata.minorVersion;
-    const flashVendor = metadata.flashVendor;
-    const psramVendor = metadata.psramVendor;
-    const flashCap = metadata.flashCap;
-    const psramCap = metadata.psramCap;
-    const blockVersionMajor = metadata.blockVersionMajor;
-    const blockVersionMinor = metadata.blockVersionMinor;
-
     const flashId = await esptool.readFlashId();
     const id = Number.isFinite(flashId) ? flashId : null;
 
@@ -5286,7 +5275,7 @@ async function connect() {
         icon: FACT_ICONS[label] ?? null,
       });
     };
-    const packageLabel = resolvePackageLabel(esp.chipName, packageVersion, chipRevision);
+    const packageLabel = resolvePackageLabel(esp.chipName, metadata.pkgVersion, metadata.chipRevision);
     pushFact('Chip Variant', packageLabel);
     const packageMatch = packageLabel?.match(/\(([^)]+)\)$/);
     if (packageMatch) {
@@ -5296,13 +5285,13 @@ async function connect() {
     // if (macLabel && macLabel !== 'Unavailable') {
     //   pushFact('MAC Address', macLabel);
     // }
-    pushFact('Revision', resolveRevisionLabel(esp.chipName, chipRevision, majorVersion, minorVersion));
+    pushFact('Revision', resolveRevisionLabel(esp.chipName, metadata.chipRevision, metadata.majorVersion, metadata.minorVersion));
     // pushFact('Flash Size', flashLabel);
 
-    const embeddedFlash = resolveEmbeddedFlash(esp.chipName, flashCap, flashVendor, featureList);
+    const embeddedFlash = resolveEmbeddedFlash(esp.chipName, metadata.flashCap, metadata.flashVendor, featureList);
     pushFact('Embedded Flash', embeddedFlash);
 
-    const embeddedPsram = resolveEmbeddedPsram(esp.chipName, psramCap, psramVendor, featureList);
+    const embeddedPsram = resolveEmbeddedPsram(esp.chipName, metadata.psramCap, metadata.psramVendor, featureList);
     pushFact('Embedded PSRAM', embeddedPsram);
 
     const cpuFrequency = extractCpuFrequency(featureList);
@@ -5326,11 +5315,11 @@ async function connect() {
       pushFact('PWM/LEDC', pwmLabel);
     }
 
-    if (flashVendor && !embeddedFlash) {
-      pushFact('Flash Vendor (eFuse)', formatVendorLabel(flashVendor));
+    if (metadata.flashVendor && !embeddedFlash) {
+      pushFact('Flash Vendor (eFuse)', formatVendorLabel(metadata.flashVendor));
     }
-    if (psramVendor && !embeddedPsram) {
-      pushFact('PSRAM Vendor (eFuse)', formatVendorLabel(psramVendor));
+    if (metadata.psramVendor && !embeddedPsram) {
+      pushFact('PSRAM Vendor (eFuse)', formatVendorLabel(metadata.psramVendor));
     }
 
     if (typeof flashId === 'number' && !Number.isNaN(flashId)) {
@@ -5365,12 +5354,12 @@ async function connect() {
     }
 
     if (
-      typeof blockVersionMajor === 'number' &&
-      !Number.isNaN(blockVersionMajor) &&
-      typeof blockVersionMinor === 'number' &&
-      !Number.isNaN(blockVersionMinor)
+      typeof  metadata.blockVersionMajor === 'number' &&
+      !Number.isNaN( metadata.blockVersionMajor) &&
+      typeof  metadata.blockVersionMinor === 'number' &&
+      !Number.isNaN( metadata.blockVersionMinor)
     ) {
-      pushFact('eFuse Block Version', `v${blockVersionMajor}.${blockVersionMinor}`);
+      pushFact('eFuse Block Version', `v${ metadata.blockVersionMajor}.${ metadata.blockVersionMinor}`);
     }
 
     const docs = esp.chipName ? findChipDocs(esp.chipName) : undefined;
