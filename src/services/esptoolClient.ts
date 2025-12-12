@@ -439,16 +439,17 @@ export function createEsptoolClient({
       }
 
       let securityInfo = undefined;
-      let securityFacts:SecurityFact[] = [];
+      let securityFacts: SecurityFact[] = [];
       try {
         status('Getting security information...');
         securityInfo = await loader.getSecurityInfo();
-        securityFacts = buildSecurityFacts(securityInfo,chipName);
+        securityFacts = buildSecurityFacts(securityInfo, chipName);
       } catch (error) {
-        logger.error("Cannot read secutiry information");
+        logger.error('Cannot read secutiry information');
       }
 
-      return { chipName, macAddress,securityFacts };
+      const result: ConnectHandshakeResult = { chipName, macAddress, securityFacts };
+      return result;
     } finally {
       setBusy(false);
     }
