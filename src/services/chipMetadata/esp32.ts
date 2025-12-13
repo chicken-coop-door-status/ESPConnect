@@ -101,7 +101,7 @@ export async function readEsp32Metadata(loader: any): Promise<ChipMetadata> {
       'ESP32-D0WDQ6',
       'ESP32-D0WD',
       'ESP32-D2WD',
-      '',
+      'ESP32-D0WD-OEM',
       'ESP32-U4WDH',
       'ESP32-PICO-D4',
       'ESP32-PICO-V3-02',
@@ -115,6 +115,7 @@ export async function readEsp32Metadata(loader: any): Promise<ChipMetadata> {
     if (singleCore !== 0) {
       chipDesc[0] = 'ESP32-S0WDQ6';
       chipDesc[1] = 'ESP32-S0WD';
+      chipDesc[3] = 'ESP32-S0WD-OEM';
     }
     if (rev3) {
       chipDesc[5] = 'ESP32-PICO-V3';
