@@ -4432,6 +4432,9 @@ const partitionSegments = computed(() => {
   if (!connected.value) {
     return [];
   }
+  if(partitionTable.value.length == 0) {
+    return [];
+  }
   const sortedPartitions = [...partitionTable.value].sort((a, b) => a.offset - b.offset);
   const parseFlashSizeLabel = label => {
     if (!label || typeof label !== 'string') return null;

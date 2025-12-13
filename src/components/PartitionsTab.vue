@@ -8,7 +8,7 @@
         <div class="partitions-empty__text">
           <div class="partitions-empty__title">No partition data yet</div>
           <div class="partitions-empty__subtitle">
-            Connect to an ESP32 to load its partition table.
+            Connect to an ESP32 to load its partition table (ESP8266 not supported).
           </div>
         </div>
       </v-card-text>
