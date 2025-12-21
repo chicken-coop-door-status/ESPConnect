@@ -682,6 +682,13 @@ import { parseNvsPartition, type NvsParseResult } from './lib/nvs/nvsParser';
 import type { AppPartitionMetadata } from './types/app-partitions';
 import type { DeviceDetails } from './types/device-details';
 import type { FilePreviewInfo } from './types/filesystem';
+import type {
+  AlertType,
+  PartitionOptionValue,
+  ProgressDialogState,
+  RegisterOption,
+  RegisterReference,
+} from './types/flash-firmware';
 
 let littlefsModulePromise = null;
 let fatfsModulePromise = null;
@@ -3530,23 +3537,23 @@ const connected = ref(false);
 const busy = ref(false);
 const flashInProgress = ref(false);
 const flashProgress = ref(0);
-const flashProgressDialog = reactive({ visible: false, value: 0, label: '' });
+const flashProgressDialog = reactive<ProgressDialogState>({ visible: false, value: 0, label: '' });
 const flashCancelRequested = ref(false);
 const selectedBaud = ref<BaudRate>(DEFAULT_FLASH_BAUD as BaudRate);
 const baudrateOptions = SUPPORTED_BAUDRATES;
 const flashOffset = ref('0x0');
 const eraseFlash = ref(false);
 const higherBaudrateAvailable = ref(false);
-const selectedPreset = ref(null);
-const selectedPartitionDownload = ref(null);
-const integrityPartition = ref(null);
+const selectedPreset = ref<string | number | null>(null);
+const selectedPartitionDownload = ref<PartitionOptionValue | null>(null);
+const integrityPartition = ref<PartitionOptionValue | null>(null);
 const currentBaud = ref(DEFAULT_FLASH_BAUD);
 const lastFlashBaud = ref(DEFAULT_FLASH_BAUD);
 const previousMonitorBaud = ref(DEFAULT_FLASH_BAUD);
 let suspendBaudWatcher = false;
 const baudChangeBusy = ref(false);
 const maintenanceBusy = ref(false);
-const downloadProgress = reactive({ visible: false, value: 0, label: '' });
+const downloadProgress = reactive<ProgressDialogState>({ visible: false, value: 0, label: '' });
 const downloadCancelRequested = ref(false);
 const {
   spiffsState,
@@ -3589,11 +3596,11 @@ const nvsState = reactive<{
 });
 const registerAddress = ref('0x0');
 const registerValue = ref('');
-const registerReadResult = ref(null);
-const registerStatus = ref(null);
-const registerStatusType = ref('info');
-const registerOptions = ref([]);
-const registerReference = ref(null);
+const registerReadResult = ref<string | null>(null);
+const registerStatus = ref<string | null>(null);
+const registerStatusType = ref<AlertType>('info');
+const registerOptions = ref<RegisterOption[]>([]);
+const registerReference = ref<RegisterReference | null>(null);
 const registerOptionLookup = computed(() => {
   const map = new Map();
   for (const option of registerOptions.value) {
@@ -3609,13 +3616,13 @@ const registerOptionLookup = computed(() => {
 });
 const md5Offset = ref('0x0');
 const md5Length = ref('');
-const md5Result = ref(null);
-const md5Status = ref(null);
-const md5StatusType = ref('info');
+const md5Result = ref<string | null>(null);
+const md5Status = ref<string | null>(null);
+const md5StatusType = ref<AlertType>('info');
 const flashReadOffset = ref('0x0');
 const flashReadLength = ref('');
-const flashReadStatus = ref(null);
-const flashReadStatusType = ref('info');
+const flashReadStatus = ref<string | null>(null);
+const flashReadStatusType = ref<AlertType>('info');
 const appPartitions = ref<AppPartitionMetadata[]>([]);
 const appMetadataLoading = ref(false);
 const appMetadataError = ref(null);
