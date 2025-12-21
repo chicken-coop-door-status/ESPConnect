@@ -1,5 +1,8 @@
 # Changelog
 
+## 1.1.1
+- Refactor components to typescript
+
 ## 1.1.0
 - New Feature : NVS Inspector
 - Filesystem backups now reuse the last partition read (avoids re-downloading the same flash region twice) ([issue #51](https://github.com/thelastoutpostworkshop/ESPConnect/issues/51)).
