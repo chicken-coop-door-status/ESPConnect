@@ -2017,9 +2017,10 @@ async function handleFatfsRestore(file: File | null) {
     fatfsState.status = `Restore file must be exactly ${formatBytes(partition.size) ?? `${partition.size} bytes`}.`;
     return;
   }
+  const fileLabel = file.name ? `"${file.name}"` : 'the selected image';
   const confirmed = await showConfirmation({
     title: 'Restore FATFS Partition',
-    message: 'This will overwrite the entire FATFS partition with the selected image. Continue?',
+    message: `This will overwrite the entire FATFS partition with ${fileLabel}. Continue?`,
     confirmText: 'Restore',
     destructive: true,
   });
