@@ -1,6 +1,8 @@
 # Changelog
 
 ## 1.1.2-preview
+### Internal
+- Remove unused legacy code that was needed for esptool-js
 ## 1.1.1
 
 ### Fixed
