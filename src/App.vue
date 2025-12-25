@@ -2,12 +2,12 @@
   <v-app>
     <v-navigation-drawer permanent app elevation="1">
       <v-list>
-        <v-list-item prepend-icon="mdi-usb" title="ESPConnect" :subtitle="'v' + APP_VERSION">
+        <v-list-item prepend-icon="mdi-usb" :title="t('app.title')" :subtitle="'v' + APP_VERSION">
         </v-list-item>
       </v-list>
       <v-list nav density="comfortable">
         <v-list-subheader class="app-drawer__label text-overline text-medium-emphasis">
-          Sections
+          {{ t('app.sectionsLabel') }}
         </v-list-subheader>
         <v-list-item v-for="item in navigationItems" :key="item.value" :value="item.value" :prepend-icon="item.icon"
           :active="activeTab === item.value" :disabled="item.disabled" class="app-drawer__list-item" rounded="lg"
@@ -18,7 +18,7 @@
       <v-divider class="app-drawer__divider" />
       <v-list density="comfortable">
         <v-list-subheader class="app-drawer__label text-overline text-medium-emphasis">
-          Resources
+          {{ t('app.resourcesLabel') }}
         </v-list-subheader>
         <v-list-item v-for="link in resourceLinks" :key="link.href" :href="link.href" :prepend-icon="link.icon"
           target="_blank" rel="noopener" class="app-drawer__list-item" rounded="lg">
@@ -31,19 +31,38 @@
         <v-btn color="primary" variant="outlined" density="comfortable"
           :disabled="!serialSupported || connected || busy" @click="connect">
           <v-icon start>mdi-usb-flash-drive</v-icon>
-          Connect
+          {{ t('actions.connect') }}
         </v-btn>
         <v-btn color="error" variant="outlined" density="comfortable" :disabled="!connected || busy"
           @click="disconnect">
           <v-icon start>mdi-close-circle</v-icon>
-          Disconnect
+          {{ t('actions.disconnect') }}
         </v-btn>
-        <v-select v-model="selectedBaud" :items="baudrateOptions" label="Baud rate" density="compact" variant="outlined"
+        <v-select v-model="selectedBaud" :items="baudrateOptions" :label="t('forms.baudRate')" density="compact" variant="outlined"
           hide-details class="status-select"
           :disabled="busy || flashInProgress || maintenanceBusy || baudChangeBusy || monitorActive" />
+        <v-menu offset-y>
+          <template #activator="{ props }">
+            <v-btn variant="text" class="language-toggle-btn"  v-bind="props" :title="languageMenuTitle">
+              {{ currentLanguageLabel }}
+              <v-icon>mdi-menu-down</v-icon>
+            </v-btn>
+          </template>
+          <v-list>
+          <v-list-item
+            v-for="option in languageOptions"
+            :key="option.code"
+            :disabled="option.code === currentLanguage"
+            @click="selectLanguage(option.code)"
+          >
+            <v-list-item-title>{{ option.label }}</v-list-item-title>
+            <v-icon v-if="option.code === currentLanguage" size="16">mdi-check</v-icon>
+          </v-list-item>
+          </v-list>
+        </v-menu>
         <span v-if="higherBaudrateAvailable">
 
-          <v-tooltip text="A higher baudrate can be used" location="bottom">
+          <v-tooltip :text="t('tooltips.higherBaud')" location="bottom">
             <template v-slot:activator="{ props }">
               <v-btn class="text-none" stacked v-bind="props">
                 <v-badge bordered color="success" dot>
@@ -55,8 +74,8 @@
         </span>
       </div>
       <v-spacer />
-      <v-btn :title="`Switch to ${isDarkTheme ? 'light' : 'dark'} theme`" variant="text" icon size="small"
-        @click="toggleTheme">
+        <v-btn :title="`Switch to ${isDarkTheme ? 'light' : 'dark'} theme`" variant="text" icon size="small"
+          @click="toggleTheme">
         <v-icon>{{ themeIcon }}</v-icon>
       </v-btn>
       <v-chip :color="connected ? 'success' : 'grey-darken-1'" class="text-capitalize" variant="elevated"
@@ -76,11 +95,11 @@
       <v-container fluid>
         <v-card elevation="8" class="pa-6">
           <v-alert v-if="!serialSupported" type="error" class="mb-4" variant="tonal" icon="mdi-alert-circle-outline">
-            This browser does not support the Web Serial API. Use Chrome, Edge, or another Chromium-based browser.
+            {{ t('alerts.browserUnsupported') }}
           </v-alert>
           <v-alert v-else-if="showSerialMonitorReconnectNotice" type="info" class="mb-4" variant="tonal"
             icon="mdi-console-line">
-            Serial monitor closed — click Connect to re-enter maintenance mode.
+            {{ t('alerts.serialMonitorClosed') }}
           </v-alert>
           <v-window v-model="activeTab" class="app-tab-content">
             <v-window-item value="info">
@@ -97,8 +116,13 @@
                 :loading="nvsState.loading" :status="nvsState.status" :error="nvsState.error" :result="nvsState.result"
                 :has-partition="hasNvsPartitionSelected" @select-partition="handleSelectNvsPartition"
                 @read-nvs="handleReadNvs" />
-              <DisconnectedState v-else icon="mdi-database-search" :min-height="420"
-                subtitle="Connect to an ESP32 with an NVS partition to inspect stored key/value pairs." />
+            <DisconnectedState
+              v-else
+              icon="mdi-database-search"
+              :min-height="420"
+              :title="t('disconnected.defaultTitle')"
+              :subtitle="t('disconnected.nvs')"
+            />
             </v-window-item>
 
             <v-window-item value="spiffs">
@@ -116,8 +140,13 @@
                 @download-file="handleSpiffsDownloadFile" @view-file="handleSpiffsView"
                 @validate-upload="handleSpiffsUploadSelection" @upload-file="handleSpiffsUpload"
                 @delete-file="handleSpiffsDelete" @format="handleSpiffsFormat" @save="handleSpiffsSave" />
-              <DisconnectedState v-else icon="mdi-folder-key-outline" :min-height="420"
-                subtitle="Connect to an ESP32 to browse and edit SPIFFS files." />
+              <DisconnectedState
+                v-else
+                icon="mdi-folder-key-outline"
+                :min-height="420"
+                :title="t('disconnected.defaultTitle')"
+                :subtitle="t('disconnected.spiffs')"
+              />
             </v-window-item>
 
             <v-window-item value="littlefs">
@@ -141,8 +170,13 @@
                 @delete-file="handleLittlefsDelete" @format="handleLittlefsFormat" @save="handleLittlefsSave"
                 @navigate="handleLittlefsNavigate" @navigate-up="handleLittlefsNavigateUp"
                 @new-folder="handleLittlefsNewFolder" @reset-upload-block="handleLittlefsResetUploadBlock" />
-              <DisconnectedState v-else icon="mdi-alpha-l-circle-outline" :min-height="420"
-                subtitle="Connect to an ESP32 with a LittleFS partition to use these tools." />
+              <DisconnectedState
+                v-else
+                icon="mdi-alpha-l-circle-outline"
+                :min-height="420"
+                :title="t('disconnected.defaultTitle')"
+                :subtitle="t('disconnected.littlefs')"
+              />
             </v-window-item>
 
             <v-window-item value="fatfs">
@@ -161,15 +195,25 @@
                 @restore="handleFatfsRestore" @download-file="handleFatfsDownloadFile" @view-file="handleFatfsView"
                 @validate-upload="handleFatfsUploadSelection" @upload-file="handleFatfsUpload"
                 @delete-file="handleFatfsDelete" @format="handleFatfsFormat" @save="handleFatfsSave" />
-              <DisconnectedState v-else icon="mdi-alpha-f-circle-outline" :min-height="420"
-                subtitle="Connect to an ESP32 with a FATFS partition to use these tools." />
+              <DisconnectedState
+                v-else
+                icon="mdi-alpha-f-circle-outline"
+                :min-height="420"
+                :title="t('disconnected.defaultTitle')"
+                :subtitle="t('disconnected.fatfs')"
+              />
             </v-window-item>
 
             <v-window-item value="apps">
               <AppsTab v-if="connected" :apps="appPartitions" :active-slot-id="activeAppSlotId"
                 :active-summary="appActiveSummary" :loading="appMetadataLoading" :error="appMetadataError" />
-              <DisconnectedState v-else icon="mdi-application-cog-outline" :min-height="420"
-                subtitle="Connect to a device to inspect OTA application slots." />
+              <DisconnectedState
+                v-else
+                icon="mdi-application-cog-outline"
+                :min-height="420"
+                :title="t('disconnected.defaultTitle')"
+                :subtitle="t('disconnected.apps')"
+              />
             </v-window-item>
 
             <v-window-item value="flash">
@@ -199,8 +243,13 @@
                 @download-used-flash="handleDownloadUsedFlash" @cancel-flash="handleCancelFlash"
                 @erase-flash="handleEraseFlash" @cancel-download="handleCancelDownload"
                 @select-register="handleSelectRegister" />
-              <DisconnectedState v-else icon="mdi-chip" :min-height="420"
-                subtitle="Connect to your board to flash firmware or inspect registers." />
+              <DisconnectedState
+                v-else
+                icon="mdi-chip"
+                :min-height="420"
+                :title="t('disconnected.defaultTitle')"
+                :subtitle="t('disconnected.flash')"
+              />
             </v-window-item>
             <v-window-item value="console">
               <SerialMonitorTab :monitor-text="monitorText" :monitor-active="monitorActive"
@@ -226,7 +275,7 @@
             <v-card-title class="text-h6">
               <v-icon start
                 :color="confirmationDialog.destructive ? 'error' : 'warning'">mdi-alert-circle-outline</v-icon>
-              {{ confirmationDialog.title || 'Please confirm' }}
+              {{ confirmationDialog.title || t('dialogs.confirmationTitle') }}
             </v-card-title>
             <v-card-text class="text-body-2">
               <div class="confirmation-message">
@@ -236,11 +285,11 @@
             <v-card-actions>
               <v-spacer />
               <v-btn variant="text" @click="resolveConfirmation(false)">
-                {{ confirmationDialog.cancelText || 'Cancel' }}
+                {{ confirmationDialog.cancelText || t('dialogs.cancel') }}
               </v-btn>
               <v-btn :color="confirmationDialog.destructive ? 'error' : 'primary'" variant="tonal"
                 @click="resolveConfirmation(true)">
-                {{ confirmationDialog.confirmText || 'Continue' }}
+                {{ confirmationDialog.confirmText || t('dialogs.continue') }}
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -250,7 +299,7 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-usb</v-icon>
-              Connecting
+              {{ t('dialogs.connecting') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
@@ -268,11 +317,11 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-content-save</v-icon>
-              LittleFS Backup
+              {{ t('dialogs.littlefsBackup') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
-                {{ littlefsBackupDialog.label || 'Preparing backup...' }}
+                {{ littlefsBackupDialog.label || t('dialogs.preparingBackup') }}
               </div>
               <v-progress-linear :model-value="littlefsBackupDialog.value" height="24" color="primary" rounded>
                 <strong>{{ Math.min(100, Math.max(0, Math.floor(littlefsBackupDialog.value))) }}%</strong>
@@ -281,7 +330,7 @@
             <v-card-actions>
               <v-spacer />
               <v-btn variant="text" @click="cancelLittlefsBackup">
-                Cancel
+                {{ t('dialogs.cancel') }}
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -291,7 +340,7 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-folder-sync</v-icon>
-              Loading LittleFS
+              {{ t('dialogs.littlefsLoading') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
@@ -303,7 +352,7 @@
             <v-card-actions class="progress-dialog__actions">
               <v-spacer />
               <v-btn variant="text" :disabled="littlefsLoadCancelRequested" @click="cancelLittlefsLoad">
-                Cancel
+                {{ t('dialogs.cancel') }}
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -313,11 +362,11 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-floppy</v-icon>
-              Saving LittleFS
+              {{ t('dialogs.littlefsSaving') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
-                {{ littlefsSaveDialog.label || 'Writing LittleFS image...' }}
+                {{ littlefsSaveDialog.label || t('dialogs.writingLittlefs') }}
               </div>
               <v-progress-linear :model-value="littlefsSaveDialog.value" height="24" color="primary" rounded>
                 <strong>{{ Math.min(100, Math.max(0, Math.floor(littlefsSaveDialog.value))) }}%</strong>
@@ -330,11 +379,11 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-backup-restore</v-icon>
-              Restoring LittleFS
+              {{ t('dialogs.littlefsRestoring') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
-                {{ littlefsRestoreDialog.label || 'Writing LittleFS image...' }}
+                {{ littlefsRestoreDialog.label || t('dialogs.writingLittlefs') }}
               </div>
               <v-progress-linear :model-value="littlefsRestoreDialog.value" height="24" color="primary" rounded>
                 <strong>{{ Math.min(100, Math.max(0, Math.floor(littlefsRestoreDialog.value))) }}%</strong>
@@ -347,11 +396,11 @@
           <v-card>
             <v-card-title class="text-h6">
               <v-icon start color="primary">mdi-content-save</v-icon>
-              FATFS Backup
+              {{ t('dialogs.fatfsBackup') }}
             </v-card-title>
             <v-card-text class="progress-dialog__body">
               <div class="progress-dialog__label">
-                {{ fatfsBackupDialog.label || 'Preparing backup...' }}
+                {{ fatfsBackupDialog.label || t('dialogs.preparingBackup') }}
               </div>
               <v-progress-linear :model-value="fatfsBackupDialog.value" height="24" color="primary" rounded>
                 <strong>{{ Math.min(100, Math.max(0, Math.floor(fatfsBackupDialog.value))) }}%</strong>
@@ -360,7 +409,7 @@
             <v-card-actions>
               <v-spacer />
               <v-btn variant="text" @click="cancelFatfsBackup">
-                Cancel
+                {{ t('dialogs.cancel') }}
               </v-btn>
             </v-card-actions>
           </v-card>
@@ -625,6 +674,7 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, reactive, ref, shallowRef, watch } from 'vue';
+import { useI18n } from 'vue-i18n';
 import { useTheme } from 'vuetify';
 import DeviceInfoTab from './components/DeviceInfoTab.vue';
 import FlashFirmwareTab from './components/FlashFirmwareTab.vue';
@@ -641,6 +691,7 @@ import registerGuides from './data/register-guides.json';
 import { InMemorySpiffsClient } from './lib/spiffs/spiffsClient';
 import { useFatfsManager, useLittlefsManager, useSpiffsManager } from './composables/useFilesystemManagers';
 import { useDialogs } from './composables/useDialogs';
+import { getLanguage, setLanguage, SupportedLocale } from './plugins/i18n';
 import { readPartitionTable } from './utils/partitions';
 import { createEsptoolClient, requestSerialPort, type CompatibleLoader, type CompatibleTransport, type EsptoolClient } from './services/esptoolClient';
 import {
@@ -675,7 +726,7 @@ import {
   SUPPORTED_BAUDRATES,
   TIMEOUT_CONNECT,
 } from './constants/usb';
-import { FACT_GROUP_CONFIG, FACT_ICONS } from './constants/deviceFacts';
+import { FACT_GROUP_CONFIG, FACT_ICONS, getFactLabelKey } from './constants/deviceFacts';
 import { findChipDocs } from './constants/chipDocsLinks';
 import { PWM_TABLE } from './utils/pwm-capabilities-table';
 import { parseNvsPartition, type NvsParseResult } from './lib/nvs/nvsParser';
@@ -2333,16 +2384,22 @@ function buildFactGroups(facts: DeviceFact[]): DeviceFactGroup[] {
   const assigned = new Set<string>();
 
   for (const config of FACT_GROUP_CONFIG) {
+    const labelMap = new Map(config.labels.map(entry => [entry.label, entry.key]));
     const items = facts.filter(fact => {
       if (assigned.has(fact.label)) return false;
-      return config.labels.includes(fact.label);
+      return labelMap.has(fact.label);
     });
     if (items.length) {
       items.forEach(item => assigned.add(item.label));
+      const enhancedItems = items.map(fact => ({
+        ...fact,
+        translationKey: fact.translationKey ?? labelMap.get(fact.label),
+      }));
       groups.push({
         title: config.title,
+        titleKey: config.titleKey,
         icon: config.icon,
-        items,
+        items: enhancedItems,
       });
     }
   }
@@ -3651,6 +3708,7 @@ function resolveEmbeddedPsram(
 }
 
 const serialSupported = 'serial' in navigator;
+const { t } = useI18n();
 const connected = ref(false);
 const busy = ref(false);
 const flashInProgress = ref(false);
@@ -3888,52 +3946,52 @@ const partitionTable = ref<PartitionTableEntry[]>([]);
 const activeTab = ref('info');
 const sessionLogRef = ref<SessionLogTabRef | null>(null);
 const navigationItems = computed(() => [
-  { title: 'Device Info', value: 'info', icon: 'mdi-information-outline', disabled: false },
-  { title: 'Partitions', value: 'partitions', icon: 'mdi-table', disabled: !connected.value },
+  { title: t('navigation.deviceInfo'), value: 'info', icon: 'mdi-information-outline', disabled: false },
+  { title: t('navigation.partitions'), value: 'partitions', icon: 'mdi-table', disabled: !connected.value },
   {
-    title: 'Apps',
+    title: t('navigation.apps'),
     value: 'apps',
     icon: 'mdi-application',
     disabled: !connected.value || maintenanceNavigationLocked.value,
   },
   {
-    title: 'NVS Inspector',
+    title: t('navigation.nvs'),
     value: 'nvs',
     icon: 'mdi-database-search',
     disabled:
       !connected.value || !nvsAvailable.value || maintenanceNavigationLocked.value,
   },
   {
-    title: 'SPIFFS Tools',
+    title: t('navigation.spiffs'),
     value: 'spiffs',
     icon: 'mdi-folder-wrench',
     disabled:
       !connected.value || !spiffsAvailable.value || maintenanceNavigationLocked.value,
   },
   {
-    title: 'LittleFS Tools',
+    title: t('navigation.littlefs'),
     value: 'littlefs',
     icon: 'mdi-alpha-l-circle-outline',
     disabled:
       !connected.value || !littleFsAvailable.value || maintenanceNavigationLocked.value,
   },
   {
-    title: 'FATFS Tools',
+    title: t('navigation.fatfs'),
     value: 'fatfs',
     icon: 'mdi-alpha-f-circle-outline',
     disabled:
       !connected.value || !fatfsAvailable.value || maintenanceNavigationLocked.value,
   },
   {
-    title: 'Flash Tools',
+    title: t('navigation.flash'),
     value: 'flash',
     icon: 'mdi-chip',
     disabled: !connected.value || maintenanceNavigationLocked.value,
   },
-  { title: 'Serial Monitor', value: 'console', icon: 'mdi-console-line', disabled: false },
-  { title: 'Session Log', value: 'log', icon: 'mdi-clipboard-text-outline', disabled: false },
+  { title: t('navigation.console'), value: 'console', icon: 'mdi-console-line', disabled: false },
+  { title: t('navigation.log'), value: 'log', icon: 'mdi-clipboard-text-outline', disabled: false },
   {
-    title: 'About',
+    title: t('navigation.about'),
     value: 'about',
     icon: 'mdi-information-box-outline',
     disabled: false,
@@ -3949,23 +4007,23 @@ watch(
   }
 );
 
-const resourceLinks = [
+const resourceLinks = computed(() => [
   {
-    title: 'Tutorial',
+    title: t('resources.tutorial'),
     href: 'https://youtu.be/-nhDKzBxHiI',
     icon: 'mdi-youtube',
   },
   {
-    title: 'Buy Me a Coffee',
+    title: t('resources.buyCoffee'),
     href: 'https://buymeacoffee.com/thelastoutpostworkshop',
     icon: 'mdi-coffee',
   },
   {
-    title: 'Get Help',
+    title: t('resources.getHelp'),
     href: 'https://github.com/thelastoutpostworkshop/ESPConnect',
     icon: 'mdi-lifebuoy',
   },
-];
+]);
 const flashSizeBytes = ref<number | null>(null);
 
 const showBusyDialog = ref(false);
@@ -3989,6 +4047,28 @@ const isDarkTheme = computed(() => currentTheme.value === 'dark');
 const themeIcon = computed(() =>
   isDarkTheme.value ? 'mdi-weather-night' : 'mdi-white-balance-sunny'
 );
+
+const currentLanguage = computed<SupportedLocale>(() => getLanguage());
+const languageOptions = computed(() => [
+  { code: 'en', label: t('language.english') },
+  { code: 'zh', label: t('language.chinese') },
+]);
+const currentLanguageLabel = computed(() =>
+  t(currentLanguage.value === 'en' ? 'language.english' : 'language.chinese'),
+);
+const otherLanguageLabel = computed(() => {
+  const option = languageOptions.value.find(lang => lang.code !== currentLanguage.value);
+  return option?.label ?? currentLanguageLabel.value;
+});
+const languageMenuTitle = computed(() =>
+  t('language.switchTo', { language: otherLanguageLabel.value }),
+);
+
+function selectLanguage(code: string) {
+  if (code !== currentLanguage.value) {
+    setLanguage(code);
+  }
+}
 
 // Apply or remove the light-theme helper class on the document body.
 function applyThemeClass(name: string) {
@@ -5112,11 +5192,11 @@ watch([md5Offset, md5Length], ([offsetValue, lengthValue]) => {
 
 const connectionChipLabel = computed(() => {
   if (!connected.value) {
-    return 'Disconnected';
+    return t('status.disconnected');
   }
 
   const name = chipDetails.value?.name?.trim();
-  return name ? `${name}` : 'Connected';
+  return name || t('status.connected');
 });
 
 const canFlash = computed(
@@ -5723,6 +5803,7 @@ async function connect() {
         label,
         value,
         icon: FACT_ICONS[label] ?? null,
+        translationKey: getFactLabelKey(label),
       });
     };
     const packageLabel = resolvePackageLabel(esp.chipName, metadata.pkgVersion, metadata.chipRevision);

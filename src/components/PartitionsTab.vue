@@ -6,9 +6,9 @@
           <v-icon size="34">mdi-table-refresh</v-icon>
         </v-avatar>
         <div class="partitions-empty__text">
-          <div class="partitions-empty__title">No partition data yet</div>
+          <div class="partitions-empty__title">{{ t('partitions.empty.title') }}</div>
           <div class="partitions-empty__subtitle">
-            Connect to an ESP32 to load its partition table (ESP8266 not supported).
+            {{ t('partitions.empty.subtitle') }}
           </div>
         </div>
       </v-card-text>
@@ -21,29 +21,32 @@
       </template>
       <v-alert v-if="showUnusedAlert" type="warning" variant="tonal" class="unused-alert">
         <div>
-          Unused flash detected - about {{ unusedReadable }} ({{ unusedBytesDisplay }} bytes) is reclaimable.
+          {{ t('partitions.alerts.unusedFlash.detected', {
+            amount: unusedReadable,
+            bytes: unusedBytesDisplay,
+          }) }}
         </div>
         <div>
-          See the
+          {{ t('partitions.alerts.unusedFlash.learn') }}
           <a href="https://youtu.be/EuHxodrye6E" target="_blank" rel="noopener noreferrer">
-            partition tutorial
+            {{ t('partitions.alerts.resources.tutorial') }}
           </a>
-          or try the
+          {{ t('partitions.alerts.unusedFlash.or') }}
           <a href="https://thelastoutpostworkshop.github.io/microcontroller_devkit/esp32partitionbuilder/"
             target="_blank" rel="noopener noreferrer">
-            ESP32 partition builder
+            {{ t('partitions.alerts.resources.builder') }}
           </a>.
         </div>
       </v-alert>
       <v-alert v-else type="info" variant="tonal" class="unused-alert">
-        Want to customize this layout? Watch the
+        {{ t('partitions.alerts.customizePrompt') }}
         <a href="https://youtu.be/EuHxodrye6E" target="_blank" rel="noopener noreferrer">
-          partition tutorial
+          {{ t('partitions.alerts.resources.tutorial') }}
         </a>
-        or open the
+        {{ t('partitions.alerts.customizeOr') }}
         <a href="https://thelastoutpostworkshop.github.io/microcontroller_devkit/esp32partitionbuilder/"
           target="_blank" rel="noopener noreferrer">
-          ESP32 partition builder
+          {{ t('partitions.alerts.resources.builder') }}
         </a>.
       </v-alert>
       <div class="partition-map">
@@ -63,7 +66,7 @@
               backgroundImage: segment.backgroundImage || undefined,
             }">
               <span v-if="segment.showLabel" class="partition-label">
-                {{ segment.label || 'Unnamed' }}
+                {{ segment.label || t('partitions.unnamed') }}
               </span>
               <span v-if="segment.showMeta" class="partition-meta">
                 {{ segment.sizeText }} - {{ segment.offsetHex }}
@@ -72,7 +75,7 @@
           </template>
           <template #default>
             <div class="partition-tooltip">
-              <div class="partition-tooltip__title">{{ segment.label || 'Unnamed' }}</div>
+              <div class="partition-tooltip__title">{{ segment.label || t('partitions.unnamed') }}</div>
               <div v-for="line in segment.tooltipLines" :key="line" class="partition-tooltip__line">
                 {{ line }}
               </div>
@@ -83,28 +86,28 @@
       <v-table density="comfortable" class="mt-4">
         <thead>
           <tr>
-            <th>Label</th>
-            <th>Type</th>
-            <th>Subtype</th>
-            <th>Offset</th>
-            <th>Size</th>
+          <th>{{ t('partitions.table.label') }}</th>
+          <th>{{ t('partitions.table.type') }}</th>
+          <th>{{ t('partitions.table.subtype') }}</th>
+          <th>{{ t('partitions.table.offset') }}</th>
+          <th>{{ t('partitions.table.size') }}</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="entry in formattedPartitions" :key="entry.offset" class="partition-table-row">
-            <td>
-              <div class="partition-table-label">
-                <span class="partition-color-pip" :style="{
-                  backgroundColor: entry.color,
-                  backgroundImage: entry.backgroundImage || undefined,
-                }"></span>
-                <span>{{ entry.label || 'Unnamed' }}</span>
-              </div>
-            </td>
-            <td>{{ entry.typeLabel }}</td>
-            <td>{{ entry.subtypeLabel }}</td>
-            <td>{{ entry.offsetHex }}</td>
-            <td>{{ entry.sizeText }}</td>
+            <tr v-for="entry in formattedPartitions" :key="entry.offset" class="partition-table-row">
+              <td>
+                <div class="partition-table-label">
+                  <span class="partition-color-pip" :style="{
+                    backgroundColor: entry.color,
+                    backgroundImage: entry.backgroundImage || undefined,
+                  }"></span>
+                <span>{{ entry.label || t('partitions.unnamed') }}</span>
+                </div>
+              </td>
+              <td>{{ entry.typeLabel }}</td>
+              <td>{{ entry.subtypeLabel }}</td>
+              <td>{{ entry.offsetHex }}</td>
+              <td>{{ entry.sizeText }}</td>
           </tr>
         </tbody>
       </v-table>
@@ -117,6 +120,7 @@
 
 <script setup lang="ts">
 import { computed, toRefs } from 'vue';
+import { useI18n } from 'vue-i18n';
 import type { FormattedPartitionRow, PartitionSegment, UnusedFlashSummary } from '../types/partitions';
 
 const props = withDefaults(
@@ -135,6 +139,7 @@ const props = withDefaults(
 );
 
 const { partitionSegments, formattedPartitions, unusedSummary, flashSizeLabel } = toRefs(props);
+const { t } = useI18n();
 
 const showUnusedAlert = computed(() => Boolean(unusedSummary.value));
 const unusedReadable = computed(() => unusedSummary.value?.readable ?? '');
@@ -143,7 +148,7 @@ const unusedBytesDisplay = computed(() =>
 );
 const partitionCardTitle = computed(() => {
   const label = flashSizeLabel.value?.trim();
-  return label ? `Partitions · ${label}` : 'Partitions';
+  return label ? t('partitions.cardTitleWithSize', { size: label }) : t('partitions.cardTitle');
 });
 </script>
 

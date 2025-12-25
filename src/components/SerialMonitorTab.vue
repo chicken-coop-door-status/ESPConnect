@@ -5,8 +5,8 @@
         <div class="monitor-card__heading">
           <span class="monitor-card__badge" :class="{ 'monitor-card__badge--live': monitorActive }" />
           <div class="monitor-card__label">
-            <v-icon class="me-2" size="20">mdi-monitor</v-icon>
-            Serial Monitor
+          <v-icon class="me-2" size="20">mdi-monitor</v-icon>
+            {{ t('serialMonitor.title') }}
           </div>
           <v-chip
             class="monitor-card__status"
@@ -16,7 +16,7 @@
             label
           >
             <v-icon size="16" start>mdi-circle-medium</v-icon>
-            {{ monitorActive ? 'Live' : 'Stopped' }}
+            {{ monitorActive ? t('serialMonitor.status.live') : t('serialMonitor.status.stopped') }}
           </v-chip>
         </div>
         <div class="monitor-card__actions">
@@ -28,7 +28,7 @@
             :disabled="monitorActive || !canStart"
             @click="emit('start-monitor')"
           >
-            Start
+            {{ t('serialMonitor.actions.start') }}
           </v-btn>
           <v-btn
             color="primary"
@@ -38,7 +38,7 @@
             :disabled="!monitorActive"
             @click="emit('stop-monitor')"
           >
-            Stop
+            {{ t('serialMonitor.actions.stop') }}
           </v-btn>
           <v-btn
             color="primary"
@@ -48,7 +48,7 @@
             :disabled="!monitorActive"
             @click="togglePause"
           >
-            {{ paused ? 'Resume' : 'Pause' }}
+            {{ paused ? t('serialMonitor.actions.resume') : t('serialMonitor.actions.pause') }}
           </v-btn>
           <v-btn
             color="secondary"
@@ -58,7 +58,7 @@
             :disabled="!hasMonitorOutput"
             @click="emit('clear-monitor')"
           >
-            Clear
+            {{ t('serialMonitor.actions.clear') }}
           </v-btn>
           <v-btn
             color="error"
@@ -68,7 +68,7 @@
             :disabled="!canCommand"
             @click="emit('reset-board')"
           >
-            Reset
+            {{ t('serialMonitor.actions.reset') }}
           </v-btn>
           <v-text-field
             v-model="filterText"
@@ -76,7 +76,7 @@
             variant="outlined"
             class="monitor-filter"
             hide-details
-            placeholder="Filter output"
+            :placeholder="t('serialMonitor.filterPlaceholder')"
             clearable
             prepend-inner-icon="mdi-filter"
             @keydown.stop
@@ -84,8 +84,7 @@
         </div>
       </v-card-title>
       <v-card-subtitle class="monitor-card__subtitle text-medium-emphasis">
-        Console run at 115200 bps automatically for reliable output. Flashing uses the baud
-        rate selected in the toolbar.
+        {{ t('serialMonitor.subtitle') }}
       </v-card-subtitle>
       <v-alert
         type="info"
@@ -93,7 +92,7 @@
         class="monitor-card__info"
         icon="mdi-information-outline"
       >
-        Starting the serial monitor resets the board into normal firmware mode so you can view UART output. Stopping the serial monitor automatically re-enters bootloader (stub) mode for maintenance (flash, partition tools, etc.).
+        {{ t('serialMonitor.info') }}
       </v-alert>
       <v-divider />
       <v-card-text ref="terminalEl" class="monitor-terminal">
@@ -104,7 +103,7 @@
           v-if="!hasMonitorOutput"
           class="monitor-terminal__empty"
         >
-          Monitor output will appear here once started.
+          {{ t('serialMonitor.emptyState') }}
         </div>
       </v-card-text>
     </v-card>
@@ -122,8 +121,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue';
-import type { SerialMonitorTabEmits, SerialMonitorTabProps } from '../types/serial-monitor';
+  import { computed, nextTick, onMounted, ref, watch } from 'vue';
+  import { useI18n } from 'vue-i18n';
+  import type { SerialMonitorTabEmits, SerialMonitorTabProps } from '../types/serial-monitor';
 
 const props = withDefaults(defineProps<SerialMonitorTabProps>(), {
   monitorText: '',
@@ -133,7 +133,8 @@ const props = withDefaults(defineProps<SerialMonitorTabProps>(), {
   canCommand: false,
 });
 
-const emit = defineEmits<SerialMonitorTabEmits>();
+  const emit = defineEmits<SerialMonitorTabEmits>();
+  const { t } = useI18n();
 
 const terminalEl = ref<unknown>(null);
 const filterText = ref('');

@@ -24,19 +24,21 @@
           <v-card class="device-summary-card" elevation="0" variant="flat" color="primary">
             <v-card-text class="device-summary-card__content">
               <div class="device-summary">
-                <div class="summary-block">
-                  <div class="summary-label">
-                    <v-icon size="40" class="me-2">mdi-memory</v-icon>
-                    Flash & Clock
-                  </div>
-                  <div class="summary-value">{{ details.flashSize || 'Unknown' }}</div>
-                  <div v-if="details.crystal" class="summary-meta">
-                    Crystal {{ details.crystal }}
-                  </div>
-                  <div v-if="primaryFacts.length" class="summary-list">
-                    <div v-for="fact in primaryFacts" :key="fact.label" class="summary-list__item">
-                      <v-icon size="16" class="me-1">{{ fact.icon || 'mdi-information-outline' }}</v-icon>
-                      <span>{{ fact.label }} : {{ fact.value }}</span>
+                  <div class="summary-block">
+                    <div class="summary-label">
+                      <v-icon size="40" class="me-2">mdi-memory</v-icon>
+                      {{ t('deviceInfo.summary.flashClock') }}
+                    </div>
+                    <div class="summary-value">
+                      {{ details.flashSize || t('deviceInfo.unknown') }}
+                    </div>
+                    <div v-if="details.crystal" class="summary-meta">
+                      {{ t('deviceInfo.crystal', { crystal: details.crystal }) }}
+                    </div>
+                    <div v-if="primaryFacts.length" class="summary-list">
+                      <div v-for="fact in primaryFacts" :key="fact.label" class="summary-list__item">
+                        <v-icon size="16" class="me-1">{{ fact.icon || 'mdi-information-outline' }}</v-icon>
+                      <span>{{ translateFactLabel(fact) }} : {{ fact.value }}</span>
                     </div>
                   </div>
                 </div>
@@ -44,10 +46,12 @@
                 <div class="summary-block">
                   <div class="summary-label">
                     <v-icon size="40" class="me-2">mdi-lightning-bolt-outline</v-icon>
-                    Feature Set
+                    {{ t('deviceInfo.summary.featureSet') }}
                   </div>
                   <div class="summary-value ml-2">
-                    {{ hasFeatures ? `${details.features.length} capabilities` : 'No features reported' }}
+                    {{ hasFeatures
+                      ? t('deviceInfo.summary.capabilities', { count: details.features.length })
+                      : t('deviceInfo.summary.noFeatures') }}
                   </div>
 
                   <div class="summary-chips">
@@ -59,12 +63,12 @@
                       </v-chip>
                       <v-chip v-if="details.features.length > featurePreview.length"
                         class="summary-chip summary-chip--more" size="small" variant="outlined">
-                        +{{ details.features.length - featurePreview.length }} more
+                        {{ t('deviceInfo.summary.more', { count: details.features.length - featurePreview.length }) }}
                       </v-chip>
                     </template>
                     <div v-else class="summary-empty">
                       <v-icon size="16">mdi-eye-off-outline</v-icon>
-                      <span>No optional capabilities.</span>
+                      <span>{{ t('deviceInfo.summary.noOptionalCapabilities') }}</span>
                     </div>
                   </div>
                 </div>
@@ -78,21 +82,18 @@
                 <v-card elevation="0" variant="tonal" class="detail-card">
                   <v-card-title>
                   <v-icon class="me-2">{{ group.icon }}</v-icon>
-                  {{ group.title }}
+                  {{ translateGroupTitle(group) }}
                 </v-card-title>
                 <v-divider class="detail-card__divider" />
                 <v-card-text>
                   <div v-for="fact in group.items" :key="fact.label" class="detail-card__item">
                     <div class="detail-card__item-label">
                       <v-icon v-if="fact.icon" class="me-2">{{ fact.icon }}</v-icon>
-                      <span>{{ fact.label }}</span>
+                      <span>{{ translateFactLabel(fact) }}</span>
                     </div>
                     <div class="detail-card__item-value">
                       <template v-if="fact.label === 'PWM/LEDC'">
-                        <VTooltip
-                          location="top"
-                          :text="'PWM/LEDC capabilities are based on the chip family, not on live data read from the device.'"
-                        >
+                        <VTooltip location="top" :text="t('deviceInfo.facts.pwmTooltip')">
                           <template #activator="{ props }">
                             <span class="detail-card__value-with-icon" v-bind="props">
                               <span>{{ fact.value }}</span>
@@ -120,16 +121,19 @@
       </v-card>
     </div>
     <div v-else key="device-info-empty" class="device-info-empty">
-      <DisconnectedState subtitle="Connect to an ESP32 to see device information." />
+<DisconnectedState
+      :title="t('disconnected.defaultTitle')"
+      :subtitle="t('disconnected.deviceInfo')" />
     </div>
   </Transition>
 </template>
 
 <script setup lang="ts">
 import { computed } from 'vue';
+import { useI18n } from 'vue-i18n';
 import DisconnectedState from './DisconnectedState.vue';
-import { PRIMARY_FACTS } from '../constants/deviceFacts';
-import type { DeviceDetails, DeviceFact } from '../types/device-details';
+import { PRIMARY_FACTS, getFactLabelKey } from '../constants/deviceFacts';
+import type { DeviceDetails, DeviceFact, DeviceFactGroup } from '../types/device-details';
 
 type DeviceDetailsWrapper = { value: DeviceDetails | null };
 
@@ -141,6 +145,8 @@ const props = withDefaults(
     chipDetails: null,
   },
 );
+
+const { t } = useI18n();
 
 const urlPattern = /^https?:\/\//i;
 const isUrl = (value: unknown): value is string => typeof value === 'string' && urlPattern.test(value);
@@ -209,6 +215,14 @@ const featurePreview = computed<string[]>(() => {
   const limit = 6;
   return details.value?.features.slice(0, limit) ?? [];
 });
+
+const translateFactLabel = (fact: DeviceFact): string => {
+  const key = fact.translationKey ?? getFactLabelKey(fact.label);
+  return key ? t(`deviceInfo.facts.labels.${key}`) : fact.label;
+};
+
+const translateGroupTitle = (group: DeviceFactGroup): string =>
+  group.titleKey ? t(`deviceInfo.facts.groups.${group.titleKey}`) : group.title;
 
 </script>
 
