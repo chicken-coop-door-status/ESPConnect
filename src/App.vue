@@ -59,9 +59,25 @@
         @click="toggleTheme">
         <v-icon>{{ themeIcon }}</v-icon>
       </v-btn>
-      <v-btn variant="text" class="language-toggle-btn" :title="languageToggleLabel" size="small" @click="toggleLanguage">
-        {{ languageToggleText }}
-      </v-btn>
+      <v-menu offset-y>
+        <template #activator="{ props }">
+          <v-btn variant="text" class="language-toggle-btn" size="small" v-bind="props" :title="languageMenuTitle">
+            {{ currentLanguageLabel }}
+            <v-icon>mdi-menu-down</v-icon>
+          </v-btn>
+        </template>
+        <v-list>
+          <v-list-item
+            v-for="option in languageOptions"
+            :key="option.code"
+            :disabled="option.code === currentLanguage.value"
+            @click="selectLanguage(option.code)"
+          >
+            <v-list-item-title>{{ option.label }}</v-list-item-title>
+            <v-icon v-if="option.code === currentLanguage.value" size="16">mdi-check</v-icon>
+          </v-list-item>
+        </v-list>
+      </v-menu>
       <v-chip :color="connected ? 'success' : 'grey-darken-1'" class="text-capitalize" variant="elevated"
         density="comfortable">
         <template #prepend>
@@ -4033,17 +4049,25 @@ const themeIcon = computed(() =>
 );
 
 const currentLanguage = computed(() => getLanguage());
-const nextLanguage = computed(() => (currentLanguage.value === 'en' ? 'zh' : 'en'));
-const languageToggleText = computed(() =>
-  nextLanguage.value === 'en' ? t('language.english') : t('language.chinese')
+const languageOptions = computed(() => [
+  { code: 'en', label: t('language.english') },
+  { code: 'zh', label: t('language.chinese') },
+]);
+const currentLanguageLabel = computed(() =>
+  t(currentLanguage.value === 'en' ? 'language.english' : 'language.chinese'),
 );
-const languageToggleLabel = computed(() => {
-  const targetLanguageKey = nextLanguage.value === 'en' ? 'language.english' : 'language.chinese';
-  return t('language.switchTo', { language: t(targetLanguageKey) });
+const otherLanguageLabel = computed(() => {
+  const option = languageOptions.value.find(lang => lang.code !== currentLanguage.value);
+  return option?.label ?? currentLanguageLabel.value;
 });
+const languageMenuTitle = computed(() =>
+  t('language.switchTo', { language: otherLanguageLabel.value }),
+);
 
-function toggleLanguage() {
-  setLanguage(nextLanguage.value);
+function selectLanguage(code: string) {
+  if (code !== currentLanguage.value) {
+    setLanguage(code);
+  }
 }
 
 // Apply or remove the light-theme helper class on the document body.
