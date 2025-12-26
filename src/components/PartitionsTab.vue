@@ -171,6 +171,22 @@ const partitionCsvRows = computed(() =>
 );
 const totalUsedBytes = computed(() => partitionCsvRows.value.reduce((total, row) => total + row.size, 0));
 const totalUsedDisplay = computed(() => formatBytes(totalUsedBytes.value) || `${totalUsedBytes.value} bytes`);
+const totalFlashBytes = computed(() => {
+  return partitionSegments.value.reduce((max, segment) => {
+    const end = segment.offset + segment.size;
+    return Math.max(max, end);
+  }, 0);
+});
+
+const flashSizeMB = computed(() => {
+  const bytes = totalFlashBytes.value;
+  if (!bytes) {
+    return 1;
+  }
+  const mb = bytes / (1024 * 1024);
+  return Math.max(1, Math.round(mb));
+});
+
 const partitionBuilderUrl = computed(() => {
   const rows = partitionCsvRows.value;
   if (!rows.length) {
@@ -179,7 +195,7 @@ const partitionBuilderUrl = computed(() => {
   const csv = buildPartitionCsv(rows);
   console.debug('partition CSV:\n' + csv);
   const encoded = encodeCsvAsBase64(csv);
-  return `${PARTITION_BUILDER_URL}?partitions=base64:${encoded}`;
+  return `${PARTITION_BUILDER_URL}?flash=${flashSizeMB.value}&partitions=base64:${encoded}`;
 });
 
 onMounted(() => {
