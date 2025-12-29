@@ -1,6 +1,6 @@
 # Changelog
 
-## 1.1.3-preview-6
+## 1.1.3
 ### Improvement
 - Session log now shows the version of tasmota-webserial-esptool package along with a timestamp
 - Failed detection of flashid is now non-fatal
