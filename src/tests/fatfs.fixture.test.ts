@@ -89,6 +89,29 @@ describe('fatfs fixture image', () => {
     expect(() => fat2.readFile('/todelete.bin')).toThrow();
   });
 
+  it('deletes all files and directories without formatting', async () => {
+    const fat = await createFixtureFatFS();
+    const entries = fat.list('/');
+
+    expect(entries.length).toBeGreaterThan(0);
+
+    const byDepth = [...entries].sort((a, b) => {
+      const aDepth = a.path.split('/').filter(Boolean).length;
+      const bDepth = b.path.split('/').filter(Boolean).length;
+      if (aDepth !== bDepth) {
+        return bDepth - aDepth;
+      }
+      return b.path.localeCompare(a.path);
+    });
+
+    for (const entry of byDepth) {
+      fat.deleteFile(entry.path);
+    }
+
+    expect(fat.list('/')).toEqual([]);
+    expect(() => fat.readFile(KNOWN_FILE)).toThrow();
+  });
+
   it('formats and remounts cleanly', async () => {
     const fat = await createFixtureFatFS();
 
