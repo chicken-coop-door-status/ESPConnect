@@ -22,11 +22,7 @@ jobs:
           days-before-issue-close: 7
           stale-issue-label: stale
 
-          exempt-issue-labels: |
-            advanced feature
-            bug
-            enhancement
-            tasmota-webserial-esptool
+          exempt-issue-labels: "advanced feature,bug,enhancement,tasmota-webserial-esptool"
 
           stale-issue-message: >
             This issue has had no activity for 30 days. If this is still relevant,
