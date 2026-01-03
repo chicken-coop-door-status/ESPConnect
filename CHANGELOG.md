@@ -1,6 +1,10 @@
 # Changelog
 
 ## 1.1.5-preview
+
+### Internal
+- Removed the decorateLoader shim since it's no longer needed with tasmota-webserial-esptool
+
 ## 1.1.4
 ### Improvement
 - Fat filesystem now supports folders
