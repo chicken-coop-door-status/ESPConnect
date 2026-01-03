@@ -22,14 +22,14 @@ npm run dev
 ## Unit tests
 - Run all unit tests: `npm run test`
 - Run a focused fixture suite: `npm run test:fatfs`
-- Unit tests live under `src/` and `src/tests`; E2E tests live under `tests/e2e`.
+- Unit tests live under `src/` (in-source tests), `src/tests`, and `tests/` (protocol/fixture tests). E2E tests live under `tests/e2e`.
 
 ## E2E tests
 - Install Playwright browsers (first time only): `npx playwright install`
 - Run E2E tests: `npm run test:e2e`
 - The E2E runner starts Vite with `VITE_E2E=1` and aliases the WebSerial service layer to a mock (`src/services/esptoolClient.mock.ts`).
 - You can also open the app with `?e2e=1` to force the E2E path locally when running `npm run dev`.
-- Unit tests live under `src/tests` and use Vitest; keep those there.
+- Unit tests use Vitest and live under `src/`, `src/tests`, and `tests/`; keep E2E tests under `tests/e2e`.
 
 ## Translations (i18n)
 - Keep strings consistent with existing keys.
